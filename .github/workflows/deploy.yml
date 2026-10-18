@@ -107,9 +107,29 @@ jobs:
             # Kontakt. Das ist angreifbar, deshalb die Warnung - SSH_KNOWN_HOSTS
             # setzen und diesen Zweig loswerden.
             echo "::warning::SSH_KNOWN_HOSTS ist nicht gesetzt, der Hostschlüssel wird ungeprüft übernommen"
-            ssh-keyscan -p "${SSH_PORT:-22}" "${HOST_CLEAN}" >> ~/.ssh/known_hosts 2>/dev/null
+            # Schluesseltypen ausdruecklich nennen und Fehler NICHT verschlucken:
+            # ein leer gebliebenes known_hosts faellt sonst erst bei rsync auf,
+            # und dann mit einer Meldung, die auf etwas anderes zeigt.
+            ssh-keyscan -t rsa,ecdsa,ed25519 -p "${SSH_PORT:-22}" "${HOST_CLEAN}" >> ~/.ssh/known_hosts
           fi
           chmod 600 ~/.ssh/known_hosts
+
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "::error::known_hosts ist leer - weder SSH_KNOWN_HOSTS gesetzt noch ssh-keyscan erfolgreich"
+            exit 1
+          fi
+
+          # Der Server bietet ED25519 an. Fehlt der Typ, scheitert rsync mit
+          # "No ED25519 host key is known" - das hier sagt vorher warum.
+          if ! grep -q 'ssh-ed25519' ~/.ssh/known_hosts; then
+            echo "::error::In known_hosts fehlt der ED25519-Schluessel. Secret neu erzeugen mit:"
+            echo "::error::  ssh-keyscan -t rsa,ecdsa,ed25519 ${HOST_CLEAN}"
+            echo "Vorhandene Eintraege (nur Typen):"
+            awk '{print "  " $2}' ~/.ssh/known_hosts | sort -u
+            exit 1
+          fi
+
+          echo "known_hosts: $(wc -l < ~/.ssh/known_hosts) Eintrag/Eintraege"
 
       - name: Übertragen
         env:
