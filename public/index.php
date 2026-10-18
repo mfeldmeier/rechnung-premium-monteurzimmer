@@ -31,11 +31,30 @@ if (PHP_VERSION_ID < 80300) {
 }
 
 if (!is_file($root . '/vendor/autoload.php')) {
+    // "Datei fehlt" ist hier oft die falsche Erklaerung: open_basedir laesst
+    // is_file() einfach false zurueckgeben, wenn der Pfad ausserhalb des
+    // erlaubten Bereichs liegt. Genau das passiert, wenn Plesk PHP auf den
+    // Dokumentstamm (public/) einschraenkt - vendor/ liegt eine Ebene hoeher.
+    // Die Einzelheiten gehen ins Server-Log, nicht an den Browser.
+    error_log(sprintf(
+        'pmz: vendor/autoload.php nicht erreichbar. root=%s is_dir(vendor)=%s '
+        . 'is_readable(vendor)=%s open_basedir=%s user=%s',
+        $root,
+        var_export(is_dir($root . '/vendor'), true),
+        var_export(is_readable($root . '/vendor'), true),
+        ini_get('open_basedir') ?: '(nicht gesetzt)',
+        function_exists('posix_getpwuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? '?') : '?',
+    ));
+
     http_response_code(500);
     header('Content-Type: text/plain; charset=utf-8');
     exit(
-        "vendor/autoload.php fehlt. Die Abhaengigkeiten werden im CI gebaut und\n"
-        . "mit ausgeliefert - fehlen sie, ist der Deploy nicht vollstaendig durchgelaufen.\n"
+        "vendor/autoload.php ist fuer den Webserver nicht erreichbar.\n\n"
+        . "Haeufigste Ursache ist nicht eine fehlende Datei, sondern open_basedir:\n"
+        . "Zeigt der Dokumentstamm auf public/, liegt vendor/ eine Ebene darueber\n"
+        . "und damit ausserhalb des erlaubten Bereichs. In den PHP-Einstellungen\n"
+        . "der Domain gehoert dort {WEBSPACEROOT}{/}{:}{TMP}{/}\n\n"
+        . "Einzelheiten stehen im Error-Log der Domain.\n"
     );
 }
 
