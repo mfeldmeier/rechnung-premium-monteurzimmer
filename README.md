@@ -41,7 +41,7 @@ Der Workflow `.github/workflows/deploy.yml` baut `vendor/` im CI (Composer auf d
 | Typ | Name | Inhalt |
 |-----|------|--------|
 | Secret | `FTP_SERVER` | Hostname des netcup-FTP-Servers |
-| Secret | `FTP_USERNAME` | FTP-Benutzername |
+| Secret | `FTP_USER` | FTP-Benutzername |
 | Secret | `FTP_PASSWORD` | FTP-Passwort |
 | Secret | `FTP_REMOTE_DIR` | `/rechnung.premium-monteurzimmer.com/httpdocs/` (mit Slash am Ende!) |
 | Secret | `DB_PASS` | Passwort der WordPress-Datenbank |
