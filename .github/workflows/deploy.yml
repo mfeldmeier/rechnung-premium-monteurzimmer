@@ -1,9 +1,12 @@
-name: Build & Deploy (rsync über SSH)
+name: Build & Deploy (tar über SSH)
 
 # Vorher lief das über FTPS. Das hat bei vendor/ reproduzierbar abgebrochen:
 # von 4.270 Dateien kamen 2.515 an, ohne dass der Lauf rot wurde - die Seite
-# scheiterte dann an fehlendem vendor/autoload.php. rsync überträgt nur
-# Geändertes, bricht bei vielen kleinen Dateien nicht ab und meldet Fehler.
+# scheiterte dann an fehlendem vendor/autoload.php.
+#
+# rsync wäre die naheliegende Alternative, ist auf dem netcup-Webhosting aber
+# nicht installiert. tar über eine SSH-Pipe kommt mit tar und gzip auf der
+# Gegenseite aus, überträgt alles als einen Strom und zählt danach nach.
 
 on:
   push:
@@ -131,37 +134,56 @@ jobs:
 
           echo "known_hosts: $(wc -l < ~/.ssh/known_hosts) Eintrag/Eintraege"
 
+      # Der netcup-Server hat kein rsync. tar ueber eine SSH-Pipe braucht auf
+      # der Gegenseite nur tar und gzip und uebertraegt alles als einen
+      # Datenstrom - genau das, woran der FTP-Sync mit 4.270 Einzeldateien
+      # gescheitert ist.
       - name: Übertragen
         env:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          set -eo pipefail
+
           SSH_USER="$(printf '%s' "${SSH_USER}" | tr -d '[:space:]')"
           DEPLOY_PATH="$(printf '%s' "${DEPLOY_PATH}" | tr -d '[:space:]')"
+          DEPLOY_PATH="${DEPLOY_PATH%/}"
 
           test -n "${SSH_USER}" || { echo "::error::Secret SSH_USER fehlt"; exit 1; }
 
-          # --delete-after raeumt auf dem Server auf. Ein leerer oder falscher
-          # Pfad waere hier verheerend, deshalb vorher pruefen.
+          # Auf dem Server wird geloescht und entpackt. Ein leerer oder
+          # falscher Pfad waere hier verheerend, deshalb vorher pruefen.
           case "${DEPLOY_PATH}" in
-            /*/httpdocs|/*/httpdocs/) ;;
+            /*/httpdocs) ;;
             *) echo "::error::DEPLOY_PATH sieht falsch aus: '${DEPLOY_PATH}' (erwartet /.../httpdocs)"; exit 1 ;;
           esac
 
-          echo "Ziel: ${SSH_USER}@${PMZ_SSH_HOST}:${DEPLOY_PATH%/}/"
+          echo "Ziel: ${SSH_USER}@${PMZ_SSH_HOST}:${DEPLOY_PATH}/"
 
-          rsync -rlptz --delete-after \
-            --exclude='/.git/' \
-            --exclude='/.github/' \
-            --exclude='/tests/' \
-            --exclude='/scripts/' \
-            --exclude='/storage/' \
-            --exclude='/phpunit.xml' \
-            --exclude='/.phpunit.cache/' \
+          # Bewusst ohne Anfuehrungszeichen verwendet: die Werte sind oben von
+          # Leerraum befreit und validiert, Wortaufteilung ist hier gewollt.
+          SSH_CMD="ssh -i $HOME/.ssh/deploy_key -p ${SSH_PORT:-22} -o StrictHostKeyChecking=yes ${SSH_USER}@${PMZ_SSH_HOST}"
+
+          $SSH_CMD "command -v tar >/dev/null || { echo 'tar fehlt auf dem Server'; exit 1; }"
+
+          # vendor/ wird vollstaendig mitgeliefert. Vorher loeschen, damit
+          # Pakete aus einem aelteren Stand nicht liegen bleiben - tar
+          # ueberschreibt nur, es raeumt nicht auf.
+          $SSH_CMD "mkdir -p '${DEPLOY_PATH}' && rm -rf '${DEPLOY_PATH}/vendor'"
+
+          tar czf - \
+            --exclude='./.git' \
+            --exclude='./.github' \
+            --exclude='./tests' \
+            --exclude='./scripts' \
+            --exclude='./storage' \
+            --exclude='./phpunit.xml' \
+            --exclude='./.phpunit.cache' \
             --exclude='.DS_Store' \
-            -e "ssh -i ~/.ssh/deploy_key -p ${SSH_PORT:-22} -o StrictHostKeyChecking=yes" \
-            ./ "${SSH_USER}@${PMZ_SSH_HOST}:${DEPLOY_PATH%/}/"
+            . | $SSH_CMD "cd '${DEPLOY_PATH}' && tar xzf -"
+
+          echo "vendor-Dateien auf dem Server: $($SSH_CMD "find '${DEPLOY_PATH}/vendor' -type f | wc -l" | tr -d ' ')"
 
       # Anders als beim FTP-Deploy erreicht der Runner die paketinterne MySQL
       # jetzt indirekt - ueber die SSH-Sitzung auf dem Server selbst.
@@ -176,9 +198,14 @@ jobs:
           SSH_USER="$(printf '%s' "${SSH_USER}" | tr -d '[:space:]')"
           DEPLOY_PATH="$(printf '%s' "${DEPLOY_PATH}" | tr -d '[:space:]')"
 
-          ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" -o StrictHostKeyChecking=yes \
-            "${SSH_USER}@${PMZ_SSH_HOST}" \
-            "cd '${DEPLOY_PATH%/}' && mkdir -p storage/invoices storage/tmp && php db/migrate.php"
+          SSH_CMD="ssh -i $HOME/.ssh/deploy_key -p ${SSH_PORT:-22} -o StrictHostKeyChecking=yes ${SSH_USER}@${PMZ_SSH_HOST}"
+
+          $SSH_CMD "cd '${DEPLOY_PATH%/}' && mkdir -p storage/invoices storage/tmp && php db/migrate.php"
+
+          # Dateien zaehlen beweist nichts - der FTP-Sync galt mit 2.515 von
+          # 4.270 Dateien als erfolgreich. Deshalb auf dem Server ausprobieren,
+          # ob Autoloader, Bibliotheken und Datenbank wirklich tragen.
+          $SSH_CMD "cd '${DEPLOY_PATH%/}' && php bin/healthcheck.php"
 
       - name: Aufräumen
         if: always()
