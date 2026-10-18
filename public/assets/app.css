@@ -1,0 +1,633 @@
+/* Premium Monteurzimmer – Rechnungssoftware. Auf den Laptop ausgelegt,
+   bewusst keine Mobile-Breakpoints. */
+
+:root {
+    --brand: #0D4EA2;
+    --brand-dark: #0a3c7d;
+    --brand-soft: #eaf1fb;
+    --ink: #1b1f24;
+    --muted: #6b7682;
+    --line: #d8dee6;
+    --bg: #f4f6f9;
+    --ok: #1f7a46;
+    --ok-bg: #e4f5ec;
+    --bad: #a62121;
+    --bad-bg: #fbeaea;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+}
+
+a {
+    color: var(--brand);
+}
+
+h1 {
+    font-size: 24px;
+    margin: 0;
+}
+
+h2 {
+    font-size: 17px;
+    margin: 0 0 12px;
+}
+
+code {
+    background: var(--brand-soft);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 13px;
+}
+
+/* ------------------------------------------------------------- Kopfleiste */
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 0 24px;
+    height: 56px;
+    background: var(--brand);
+    color: #fff;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.mainnav {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+}
+
+.mainnav a {
+    color: #d9e4f4;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+}
+
+.mainnav a:hover {
+    background: var(--brand-dark);
+    color: #fff;
+}
+
+.mainnav a.is-active {
+    background: #fff;
+    color: var(--brand);
+    font-weight: 600;
+}
+
+.logout {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.who {
+    color: #d9e4f4;
+    font-size: 13px;
+}
+
+.logout .btn-plain {
+    color: #fff;
+    border-color: #4a7cc0;
+}
+
+/* ------------------------------------------------------------------ Layout */
+
+.wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.card--narrow {
+    max-width: 560px;
+}
+
+.card.danger {
+    border-color: #e6bcbc;
+}
+
+.cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+}
+
+.pagehead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.pagehead--inner {
+    margin-bottom: 12px;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+}
+
+.formbar {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg);
+    padding: 12px 0 20px;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.small {
+    font-size: 13px;
+}
+
+.num {
+    text-align: right;
+}
+
+/* ---------------------------------------------------------------- Formulare */
+
+label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 10px;
+}
+
+label.check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    align-self: center;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+    display: block;
+    width: 100%;
+    margin-top: 3px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid var(--brand);
+    outline-offset: -1px;
+}
+
+input[readonly] {
+    background: #f1f3f6;
+    color: var(--muted);
+}
+
+textarea {
+    resize: vertical;
+}
+
+.stack > label {
+    margin-bottom: 12px;
+}
+
+.row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.row > label {
+    margin-bottom: 10px;
+}
+
+.row .grow {
+    flex: 1;
+}
+
+.row .narrow {
+    width: 130px;
+    flex: none;
+}
+
+.row > .btn {
+    margin-bottom: 10px;
+}
+
+.inline-form {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+}
+
+.inline-form.is-inactive {
+    opacity: 0.55;
+}
+
+.filterbar {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+}
+
+.filterbar .grow {
+    flex: 1;
+}
+
+.filterbar > .btn {
+    margin-bottom: 10px;
+}
+
+/* ------------------------------------------------------------------ Knoepfe */
+
+.btn {
+    display: inline-block;
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.btn:hover {
+    border-color: var(--brand);
+    color: var(--brand);
+}
+
+.btn-primary {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: #fff;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background: var(--brand-dark);
+    border-color: var(--brand-dark);
+    color: #fff;
+}
+
+.btn-plain {
+    background: transparent;
+}
+
+.btn-danger {
+    color: var(--bad);
+    border-color: #e6bcbc;
+}
+
+.btn-danger:hover {
+    background: var(--bad-bg);
+    color: var(--bad);
+    border-color: var(--bad);
+}
+
+.btn-icon {
+    padding: 3px 7px;
+    line-height: 1;
+}
+
+.btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.btn-preset {
+    border-color: var(--brand);
+    color: var(--brand);
+    font-weight: 600;
+}
+
+.preset-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+/* ------------------------------------------------------------------ Meldungen */
+
+.flash {
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin: 0 0 16px;
+}
+
+.flash--success {
+    background: var(--ok-bg);
+    color: var(--ok);
+    border: 1px solid #b8e0c9;
+}
+
+.flash--error {
+    background: var(--bad-bg);
+    color: var(--bad);
+    border: 1px solid #e6bcbc;
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    background: #eceff3;
+    color: var(--muted);
+}
+
+.badge--final {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.badge--cancelled {
+    background: var(--bad-bg);
+    color: var(--bad);
+}
+
+.trace {
+    background: #2b2f36;
+    color: #e6e9ee;
+    padding: 14px;
+    border-radius: 4px;
+    overflow: auto;
+    font-size: 12px;
+}
+
+/* -------------------------------------------------------------- Tabellen */
+
+.grid {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.grid th,
+.grid td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+}
+
+.grid thead th {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    border-bottom: 2px solid var(--line);
+    white-space: nowrap;
+}
+
+.grid th.num,
+.grid td.num {
+    text-align: right;
+}
+
+.grid tbody tr:hover {
+    background: #fafbfc;
+}
+
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.tile {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px;
+}
+
+.tile--accent {
+    border-color: var(--brand);
+    background: var(--brand-soft);
+}
+
+.tile-label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.tile-value {
+    display: block;
+    font-size: 19px;
+    margin-top: 4px;
+}
+
+.kv {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 16px;
+    margin: 0;
+}
+
+.kv dt {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.kv dd {
+    margin: 0;
+}
+
+.totals {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.totals th,
+.totals td {
+    padding: 5px 0;
+    text-align: left;
+    font-weight: normal;
+}
+
+.totals td.num {
+    text-align: right;
+}
+
+.totals .totals-sum th,
+.totals .totals-sum td {
+    border-top: 2px solid var(--brand);
+    padding-top: 8px;
+    font-weight: 700;
+    font-size: 17px;
+}
+
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+/* ------------------------------------------------------ Positionen im Editor */
+
+.items {
+    table-layout: auto;
+}
+
+.items td {
+    padding: 6px 6px;
+    vertical-align: middle;
+}
+
+.items input,
+.items select {
+    margin-top: 0;
+}
+
+.items .tiny {
+    width: 70px;
+    text-align: right;
+}
+
+.items .price {
+    width: 100px;
+    text-align: right;
+}
+
+.items .col-description {
+    min-width: 220px;
+}
+
+.items .exemption {
+    margin: 4px 0 0;
+    font-size: 12px;
+}
+
+.drag-col {
+    width: 22px;
+    padding-right: 0 !important;
+}
+
+.drag-handle {
+    cursor: grab;
+    color: var(--muted);
+    user-select: none;
+}
+
+.item-row.is-dragging {
+    opacity: 0.4;
+}
+
+.row-actions {
+    white-space: nowrap;
+}
+
+/* Felder, die nur fuer Uebernachtungen gelten, bleiben als Platz erhalten -
+   sonst springen beim Zeilenwechsel die Spaltenbreiten. */
+.item-row .col-apartment select,
+.item-row .col-from input,
+.item-row .col-to input,
+.item-row .col-beds input,
+.item-row [data-output="nights"] {
+    visibility: hidden;
+}
+
+.item-row.is-accommodation .col-apartment select,
+.item-row.is-accommodation .col-from input,
+.item-row.is-accommodation .col-to input,
+.item-row.is-accommodation .col-beds input,
+.item-row.is-accommodation [data-output="nights"] {
+    visibility: visible;
+}
+
+.item-row [data-output="quantity"] {
+    display: none;
+}
+
+.item-row.is-accommodation [data-field="quantity"] {
+    display: none;
+}
+
+.item-row.is-accommodation [data-output="quantity"] {
+    display: inline;
+}
+
+/* ------------------------------------------------------------ Kundenauswahl */
+
+.customer-search {
+    position: relative;
+}
+
+.suggestions {
+    list-style: none;
+    margin: -8px 0 10px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    max-height: 240px;
+    overflow: auto;
+}
+
+.suggestion {
+    display: block;
+    width: 100%;
+    padding: 7px 10px;
+    border: 0;
+    background: none;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.suggestion:hover {
+    background: var(--brand-soft);
+}
+
+.customer-fields label {
+    margin-bottom: 8px;
+}

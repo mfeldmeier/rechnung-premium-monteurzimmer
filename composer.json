@@ -1,0 +1,40 @@
+{
+    "name": "reher/premium-monteurzimmer-rechnungen",
+    "description": "Rechnungserstellung fuer Premium Monteurzimmer Reher",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.3",
+        "ext-pdo": "*",
+        "ext-mbstring": "*",
+        "ext-json": "*",
+        "ext-gd": "*",
+        "ext-dom": "*",
+        "ext-libxml": "*",
+        "mpdf/mpdf": "^8.2",
+        "horstoeko/zugferd": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pmz\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Pmz\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.3.33"
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit",
+        "migrate": "php db/migrate.php"
+    }
+}

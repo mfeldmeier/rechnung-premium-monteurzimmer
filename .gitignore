@@ -1,0 +1,6 @@
+/vendor/
+/.env
+/storage/invoices/*.pdf
+/storage/tmp/
+/.phpunit.cache/
+.DS_Store

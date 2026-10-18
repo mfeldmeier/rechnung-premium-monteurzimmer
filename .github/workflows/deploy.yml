@@ -1,0 +1,99 @@
+name: Build & Deploy (FTP)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP einrichten
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo, pdo_mysql, mbstring, json, gd, zip
+          coverage: none
+
+      - name: Composer-Abhängigkeiten installieren (kein dev, kein Composer auf dem Server)
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      # Die .env entsteht hier aus den Secrets und wird mit hochgeladen - der
+      # Server soll ohne Handgriff laufen. Folgen, die man kennen muss:
+      # 1. Sie ist deshalb NICHT in der Exclude-Liste und wird bei jedem Deploy
+      #    überschrieben. Änderungen direkt auf dem Server gehen verloren.
+      # 2. Das DB-Passwort läuft bei jedem Deploy über FTPS.
+      # Der Wert kommt über die Umgebung, nicht als Kommandozeilen-Argument -
+      # so landet er nicht im Action-Log.
+      - name: .env aus Secrets erzeugen
+        env:
+          DB_PASS: ${{ secrets.DB_PASS }}
+          APP_URL: ${{ secrets.APP_URL }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PREFIX: ${{ secrets.DB_PREFIX }}
+        run: |
+          {
+            echo "APP_ENV=prod"
+            echo "APP_URL=${APP_URL:-https://rechnung.premium-monteurzimmer.com}"
+            echo "DB_HOST=${DB_HOST:-10.35.232.161}"
+            echo "DB_PORT=${DB_PORT:-3306}"
+            echo "DB_NAME=${DB_NAME:-k312683_wordpress_2}"
+            echo "DB_USER=${DB_USER:-k312683_wordpress_f}"
+            echo "DB_PASS=${DB_PASS}"
+            echo "DB_PREFIX=${DB_PREFIX:-pmz_}"
+            echo "STORAGE_PATH=storage"
+          } > .env
+          test -n "${DB_PASS}" || { echo "::error::Secret DB_PASS ist leer"; exit 1; }
+          echo "Zeilen in .env: $(wc -l < .env)"
+
+      # HINWEIS: Die DB-Migration läuft NICHT automatisch.
+      # Der GitHub-Runner hat keinen Zugriff auf die paketinterne MySQL-IP (10.35.232.161).
+      # Nach dem ersten Deployment und bei Schema-Änderungen muss `php db/migrate.php`
+      # einmal per SSH auf dem netcup-Server ausgeführt werden.
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: ${{ vars.FTP_PORT || 21 }}
+          local-dir: ./
+          server-dir: ${{ secrets.FTP_REMOTE_DIR }}
+          # Die Action loescht entfernte Dateien, die lokal fehlen. `.env` und
+          # `storage/` stehen in .gitignore, liegen also nicht im Checkout -
+          # ein nicht greifendes Muster wuerde auf dem Server die DB-Zugangs-
+          # daten und das gesamte Rechnungsarchiv loeschen. Deshalb bewusst
+          # beide Schreibweisen: ob `**/x` auch ein `x` in der Wurzel trifft,
+          # haengt an der Glob-Implementierung und ist nichts, worauf man bei
+          # aufbewahrungspflichtigen Belegen wetten sollte.
+          # `.env` fehlt hier bewusst: sie wird oben aus den Secrets erzeugt
+          # und soll mit hochgeladen werden.
+          exclude: |
+            storage/**
+            **/storage/**
+            .git*
+            .git*/**
+            **/.git*
+            .github/**
+            **/.github/**
+            tests/**
+            **/tests/**
+            scripts/**
+            **/scripts/**
+            phpunit.xml
+            **/phpunit.xml
+            .phpunit.cache/**
+            **/.phpunit.cache/**
+            **/.DS_Store

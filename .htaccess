@@ -1,0 +1,4 @@
+# Sicherheitsnetz: Verweigert direkten HTTP-Zugriff auf alle Dateien im Projektwurzelverzeichnis.
+# Greift nur, wenn der Docroot auf die Wurzel statt auf public/ zeigt.
+# Saubere Lösung: Subdomain-Docroot auf public/ konfigurieren.
+Require all denied
