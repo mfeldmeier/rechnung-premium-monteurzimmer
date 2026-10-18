@@ -18,6 +18,27 @@ use Pmz\Support\Env;
 
 $root = dirname(__DIR__);
 
+// Vor dem Autoloader gibt es weder Logging noch Fehlerseite - ein Fehler hier
+// endet als nackter 500. Deshalb die beiden haeufigsten Ursachen ausdruecklich
+// abfangen und benennen.
+if (PHP_VERSION_ID < 80300) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit(
+        'Diese Anwendung braucht PHP 8.3, laeuft hier aber auf ' . PHP_VERSION . ".\n"
+        . "In Plesk wird die PHP-Version je Domain gesetzt und kann von der in der Shell abweichen.\n"
+    );
+}
+
+if (!is_file($root . '/vendor/autoload.php')) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit(
+        "vendor/autoload.php fehlt. Die Abhaengigkeiten werden im CI gebaut und\n"
+        . "mit ausgeliefert - fehlen sie, ist der Deploy nicht vollstaendig durchgelaufen.\n"
+    );
+}
+
 require $root . '/vendor/autoload.php';
 
 Env::load($root . '/.env');
