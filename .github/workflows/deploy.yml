@@ -73,6 +73,29 @@ jobs:
           test -n "${SSH_PRIVATE_KEY}" || { echo "::error::Secret SSH_PRIVATE_KEY fehlt"; exit 1; }
           test -n "${SSH_HOST}"        || { echo "::error::Secret SSH_HOST fehlt"; exit 1; }
 
+          # Beim Einfuegen in die GitHub-Oberflaeche landen leicht Leerzeichen
+          # oder ein Zeilenumbruch im Wert. ssh meldet dann nur "hostname
+          # contains invalid characters" und nennt den Grund nicht.
+          HOST_CLEAN="$(printf '%s' "${SSH_HOST}" | tr -d '[:space:]')"
+
+          case "${HOST_CLEAN}" in
+            *://*)  echo "::error::SSH_HOST enthaelt ein Protokoll. Nur den Hostnamen eintragen, ohne https:// oder ssh://"; exit 1 ;;
+            *@*)    echo "::error::SSH_HOST enthaelt ein @. Benutzer gehoert in SSH_USER, hier nur der Hostname"; exit 1 ;;
+            */*)    echo "::error::SSH_HOST enthaelt einen Pfad. Hier nur der Hostname"; exit 1 ;;
+            *:*)    echo "::error::SSH_HOST enthaelt einen Port. Der gehoert in SSH_PORT"; exit 1 ;;
+          esac
+
+          if ! printf '%s' "${HOST_CLEAN}" | grep -qE '^[A-Za-z0-9._-]+$'; then
+            echo "::error::SSH_HOST enthaelt unzulaessige Zeichen (Laenge ${#HOST_CLEAN})"
+            exit 1
+          fi
+
+          if [ "${HOST_CLEAN}" != "${SSH_HOST}" ]; then
+            echo "::warning::SSH_HOST enthielt Leerraum, der entfernt wurde - im Secret bitte korrigieren"
+          fi
+
+          echo "PMZ_SSH_HOST=${HOST_CLEAN}" >> "$GITHUB_ENV"
+
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
@@ -84,23 +107,29 @@ jobs:
             # Kontakt. Das ist angreifbar, deshalb die Warnung - SSH_KNOWN_HOSTS
             # setzen und diesen Zweig loswerden.
             echo "::warning::SSH_KNOWN_HOSTS ist nicht gesetzt, der Hostschlüssel wird ungeprüft übernommen"
-            ssh-keyscan -p "${SSH_PORT:-22}" "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+            ssh-keyscan -p "${SSH_PORT:-22}" "${HOST_CLEAN}" >> ~/.ssh/known_hosts 2>/dev/null
           fi
           chmod 600 ~/.ssh/known_hosts
 
       - name: Übertragen
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          SSH_USER="$(printf '%s' "${SSH_USER}" | tr -d '[:space:]')"
+          DEPLOY_PATH="$(printf '%s' "${DEPLOY_PATH}" | tr -d '[:space:]')"
+
+          test -n "${SSH_USER}" || { echo "::error::Secret SSH_USER fehlt"; exit 1; }
+
           # --delete-after raeumt auf dem Server auf. Ein leerer oder falscher
           # Pfad waere hier verheerend, deshalb vorher pruefen.
           case "${DEPLOY_PATH}" in
             /*/httpdocs|/*/httpdocs/) ;;
             *) echo "::error::DEPLOY_PATH sieht falsch aus: '${DEPLOY_PATH}' (erwartet /.../httpdocs)"; exit 1 ;;
           esac
+
+          echo "Ziel: ${SSH_USER}@${PMZ_SSH_HOST}:${DEPLOY_PATH%/}/"
 
           rsync -rlptz --delete-after \
             --exclude='/.git/' \
@@ -112,7 +141,7 @@ jobs:
             --exclude='/.phpunit.cache/' \
             --exclude='.DS_Store' \
             -e "ssh -i ~/.ssh/deploy_key -p ${SSH_PORT:-22} -o StrictHostKeyChecking=yes" \
-            ./ "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH%/}/"
+            ./ "${SSH_USER}@${PMZ_SSH_HOST}:${DEPLOY_PATH%/}/"
 
       # Anders als beim FTP-Deploy erreicht der Runner die paketinterne MySQL
       # jetzt indirekt - ueber die SSH-Sitzung auf dem Server selbst.
@@ -120,13 +149,15 @@ jobs:
       # pmz_migrations und werden uebersprungen.
       - name: Datenbank migrieren
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          SSH_USER="$(printf '%s' "${SSH_USER}" | tr -d '[:space:]')"
+          DEPLOY_PATH="$(printf '%s' "${DEPLOY_PATH}" | tr -d '[:space:]')"
+
           ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" -o StrictHostKeyChecking=yes \
-            "${SSH_USER}@${SSH_HOST}" \
+            "${SSH_USER}@${PMZ_SSH_HOST}" \
             "cd '${DEPLOY_PATH%/}' && mkdir -p storage/invoices storage/tmp && php db/migrate.php"
 
       - name: Aufräumen
