@@ -1,4 +1,9 @@
-name: Build & Deploy (FTP)
+name: Build & Deploy (rsync über SSH)
+
+# Vorher lief das über FTPS. Das hat bei vendor/ reproduzierbar abgebrochen:
+# von 4.270 Dateien kamen 2.515 an, ohne dass der Lauf rot wurde - die Seite
+# scheiterte dann an fehlendem vendor/autoload.php. rsync überträgt nur
+# Geändertes, bricht bei vielen kleinen Dateien nicht ab und meldet Fehler.
 
 on:
   push:
@@ -22,16 +27,19 @@ jobs:
           extensions: pdo, pdo_mysql, mbstring, json, gd, zip
           coverage: none
 
-      - name: Composer-Abhängigkeiten installieren (kein dev, kein Composer auf dem Server)
+      - name: Composer-Abhängigkeiten installieren
         run: composer install --no-dev --optimize-autoloader --no-interaction
 
-      # Die .env entsteht hier aus den Secrets und wird mit hochgeladen - der
-      # Server soll ohne Handgriff laufen. Folgen, die man kennen muss:
-      # 1. Sie ist deshalb NICHT in der Exclude-Liste und wird bei jedem Deploy
-      #    überschrieben. Änderungen direkt auf dem Server gehen verloren.
-      # 2. Das DB-Passwort läuft bei jedem Deploy über FTPS.
-      # Der Wert kommt über die Umgebung, nicht als Kommandozeilen-Argument -
-      # so landet er nicht im Action-Log.
+      - name: Vollständigkeit prüfen
+        run: |
+          test -f vendor/autoload.php || { echo "::error::vendor/autoload.php wurde nicht erzeugt"; exit 1; }
+          echo "Dateien in vendor: $(find vendor -type f | wc -l)"
+
+      # Die .env entsteht aus den Secrets und wird mit übertragen, damit der
+      # Server ohne Handgriff läuft. Sie wird dabei bei jedem Deploy
+      # überschrieben - Konfiguration gehört also in die Secrets, nicht auf
+      # den Server. Der Wert kommt über die Umgebung statt als Argument, so
+      # steht er nicht im Action-Log.
       - name: .env aus Secrets erzeugen
         env:
           DB_PASS: ${{ secrets.DB_PASS }}
@@ -42,6 +50,7 @@ jobs:
           DB_USER: ${{ secrets.DB_USER }}
           DB_PREFIX: ${{ secrets.DB_PREFIX }}
         run: |
+          test -n "${DB_PASS}" || { echo "::error::Secret DB_PASS ist leer"; exit 1; }
           {
             echo "APP_ENV=prod"
             echo "APP_URL=${APP_URL:-https://rechnung.premium-monteurzimmer.com}"
@@ -53,47 +62,73 @@ jobs:
             echo "DB_PREFIX=${DB_PREFIX:-pmz_}"
             echo "STORAGE_PATH=storage"
           } > .env
-          test -n "${DB_PASS}" || { echo "::error::Secret DB_PASS ist leer"; exit 1; }
-          echo "Zeilen in .env: $(wc -l < .env)"
 
-      # HINWEIS: Die DB-Migration läuft NICHT automatisch.
-      # Der GitHub-Runner hat keinen Zugriff auf die paketinterne MySQL-IP (10.35.232.161).
-      # Nach dem ersten Deployment und bei Schema-Änderungen muss `php db/migrate.php`
-      # einmal per SSH auf dem netcup-Server ausgeführt werden.
+      - name: SSH vorbereiten
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          test -n "${SSH_PRIVATE_KEY}" || { echo "::error::Secret SSH_PRIVATE_KEY fehlt"; exit 1; }
+          test -n "${SSH_HOST}"        || { echo "::error::Secret SSH_HOST fehlt"; exit 1; }
 
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          port: ${{ vars.FTP_PORT || 21 }}
-          local-dir: ./
-          server-dir: ${{ secrets.FTP_REMOTE_DIR }}
-          # Die Action loescht entfernte Dateien, die lokal fehlen. `.env` und
-          # `storage/` stehen in .gitignore, liegen also nicht im Checkout -
-          # ein nicht greifendes Muster wuerde auf dem Server die DB-Zugangs-
-          # daten und das gesamte Rechnungsarchiv loeschen. Deshalb bewusst
-          # beide Schreibweisen: ob `**/x` auch ein `x` in der Wurzel trifft,
-          # haengt an der Glob-Implementierung und ist nichts, worauf man bei
-          # aufbewahrungspflichtigen Belegen wetten sollte.
-          # `.env` fehlt hier bewusst: sie wird oben aus den Secrets erzeugt
-          # und soll mit hochgeladen werden.
-          exclude: |
-            storage/**
-            **/storage/**
-            .git*
-            .git*/**
-            **/.git*
-            .github/**
-            **/.github/**
-            tests/**
-            **/tests/**
-            scripts/**
-            **/scripts/**
-            phpunit.xml
-            **/phpunit.xml
-            .phpunit.cache/**
-            **/.phpunit.cache/**
-            **/.DS_Store
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          if [ -n "${SSH_KNOWN_HOSTS}" ]; then
+            printf '%s\n' "${SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          else
+            # Ohne hinterlegten Fingerabdruck bleibt nur Vertrauen beim ersten
+            # Kontakt. Das ist angreifbar, deshalb die Warnung - SSH_KNOWN_HOSTS
+            # setzen und diesen Zweig loswerden.
+            echo "::warning::SSH_KNOWN_HOSTS ist nicht gesetzt, der Hostschlüssel wird ungeprüft übernommen"
+            ssh-keyscan -p "${SSH_PORT:-22}" "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Übertragen
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          # --delete-after raeumt auf dem Server auf. Ein leerer oder falscher
+          # Pfad waere hier verheerend, deshalb vorher pruefen.
+          case "${DEPLOY_PATH}" in
+            /*/httpdocs|/*/httpdocs/) ;;
+            *) echo "::error::DEPLOY_PATH sieht falsch aus: '${DEPLOY_PATH}' (erwartet /.../httpdocs)"; exit 1 ;;
+          esac
+
+          rsync -rlptz --delete-after \
+            --exclude='/.git/' \
+            --exclude='/.github/' \
+            --exclude='/tests/' \
+            --exclude='/scripts/' \
+            --exclude='/storage/' \
+            --exclude='/phpunit.xml' \
+            --exclude='/.phpunit.cache/' \
+            --exclude='.DS_Store' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${SSH_PORT:-22} -o StrictHostKeyChecking=yes" \
+            ./ "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH%/}/"
+
+      # Anders als beim FTP-Deploy erreicht der Runner die paketinterne MySQL
+      # jetzt indirekt - ueber die SSH-Sitzung auf dem Server selbst.
+      # Die Migration ist idempotent: bereits angewandte Dateien stehen in
+      # pmz_migrations und werden uebersprungen.
+      - name: Datenbank migrieren
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" -o StrictHostKeyChecking=yes \
+            "${SSH_USER}@${SSH_HOST}" \
+            "cd '${DEPLOY_PATH%/}' && mkdir -p storage/invoices storage/tmp && php db/migrate.php"
+
+      - name: Aufräumen
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
