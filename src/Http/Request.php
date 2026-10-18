@@ -46,6 +46,15 @@ final class Request
 
         $path = '/' . ltrim($path, '/');
 
+        // Wer /index.php direkt aufruft, meint die Startseite. Ohne das hier
+        // antwortet der Router mit 404 und die Installation wirkt kaputt,
+        // obwohl sie laeuft.
+        if (str_ends_with($path, '/index.php')) {
+            $path = substr($path, 0, -strlen('index.php'));
+        }
+
+        $path = '/' . ltrim($path, '/');
+
         return $path !== '/' ? rtrim($path, '/') : '/';
     }
 
