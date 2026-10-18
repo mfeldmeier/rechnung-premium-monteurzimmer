@@ -1,4 +1,33 @@
-# Sicherheitsnetz: Verweigert direkten HTTP-Zugriff auf alle Dateien im Projektwurzelverzeichnis.
-# Greift nur, wenn der Docroot auf die Wurzel statt auf public/ zeigt.
-# Saubere Lösung: Subdomain-Docroot auf public/ konfigurieren.
-Require all denied
+# Dieses Verzeichnis liegt ueber dem Dokumentstamm - der zeigt auf public/.
+# Trotzdem wird die Datei ausgewertet: Apache liest .htaccess in der ganzen
+# Verzeichniskette, die Plesk per AllowOverride freigibt, nicht erst ab dem
+# Dokumentstamm.
+#
+# Hier stand frueher "Require all denied" als Sicherheitsnetz fuer den Fall,
+# dass der Dokumentstamm faelschlich auf dieses Verzeichnis zeigt. Das hat sich
+# nach public/ vererbt und die korrekte Einrichtung mit 403 lahmgelegt. Ein
+# Schutz, der die richtige Konfiguration kaputtmacht, ist keiner.
+#
+# Stattdessen gezielt sperren, was auch bei falsch gesetztem Dokumentstamm
+# niemals ausgeliefert werden darf. Der eigentliche Schutz bleibt der
+# Dokumentstamm auf public/.
+
+Options -Indexes
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(sql|lock|md|dist|yml|yaml)$">
+    Require all denied
+</FilesMatch>
+
+<Files "composer.json">
+    Require all denied
+</Files>
+
+# Greift nur, falls der Dokumentstamm doch auf dieses Verzeichnis zeigt.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(src|vendor|storage|db|bin|tests|templates|scripts)(/|$) - [F,L]
+</IfModule>

@@ -1,3 +1,8 @@
+# Zugriff hier ausdruecklich erlauben. Notwendig, weil Apache die .htaccess
+# daruberliegender Verzeichnisse mitauswertet - eine Sperre eine Ebene hoeher
+# wuerde sonst hierher durchschlagen und die Seite mit 403 beantworten.
+Require all granted
+
 Options -Indexes
 
 # Direktzugriff auf Dotfiles verbieten
