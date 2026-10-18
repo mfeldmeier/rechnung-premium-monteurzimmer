@@ -163,6 +163,18 @@ function findUserId(string $email): ?int
 
 function askPasswordTwice(): string
 {
+    // Nicht-interaktiver Weg fuer eingeschraenkte Shells (Plesk, Cronjobs).
+    // Der Wert kommt ueber die Umgebung und nicht als Argument, damit er nicht
+    // in der Prozessliste auftaucht.
+    $fromEnv = getenv('PMZ_PASSWORD');
+    if (is_string($fromEnv) && $fromEnv !== '') {
+        if (mb_strlen($fromEnv) < MIN_PASSWORD_LENGTH) {
+            throw new RuntimeException('PMZ_PASSWORD ist kuerzer als ' . MIN_PASSWORD_LENGTH . ' Zeichen.');
+        }
+
+        return $fromEnv;
+    }
+
     while (true) {
         $first = promptHidden('Passwort: ');
 
@@ -181,26 +193,54 @@ function askPasswordTwice(): string
 }
 
 /**
- * Liest eine Zeile ohne Bildschirmausgabe. Das Terminal wird in jedem Fall
- * zurueckgestellt - sonst bleibt die Shell nach einem Abbruch blind.
+ * Liest eine Zeile moeglichst ohne Bildschirmausgabe. Das Terminal wird in
+ * jedem Fall zurueckgestellt - sonst bleibt die Shell nach einem Abbruch blind.
+ *
+ * Eingeschraenkte Shells wie die von Plesk haben weder stty noch zwingend
+ * shell_exec. Dann wird die Eingabe sichtbar gelesen, aber vorher gewarnt:
+ * lieber ein sichtbares Passwort als ein Abbruch mitten im Setup. Wer das
+ * vermeiden will, setzt PMZ_PASSWORD.
  */
 function promptHidden(string $label): string
 {
+    $hidden = stream_isatty(STDIN) && sttyAvailable();
+
+    if (!$hidden) {
+        fwrite(STDERR, 'Hinweis: Die Eingabe kann hier nicht verdeckt werden und bleibt sichtbar.' . PHP_EOL
+            . 'Alternative: PMZ_PASSWORD=<passwort> php bin/user.php ...' . PHP_EOL);
+    }
+
     fwrite(STDOUT, $label);
 
-    $isTty = stream_isatty(STDIN);
-    if ($isTty) {
+    if ($hidden) {
         shell_exec('stty -echo');
     }
 
     try {
         $line = fgets(STDIN);
     } finally {
-        if ($isTty) {
+        if ($hidden) {
             shell_exec('stty echo');
             fwrite(STDOUT, PHP_EOL);
         }
     }
 
     return rtrim($line === false ? '' : $line, "\r\n");
+}
+
+function sttyAvailable(): bool
+{
+    static $available = null;
+
+    if ($available !== null) {
+        return $available;
+    }
+
+    if (!function_exists('shell_exec') || in_array('shell_exec', explode(',', str_replace(' ', '', (string) ini_get('disable_functions'))), true)) {
+        return $available = false;
+    }
+
+    $found = @shell_exec('command -v stty 2>/dev/null');
+
+    return $available = is_string($found) && trim($found) !== '';
 }
