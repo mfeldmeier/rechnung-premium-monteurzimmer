@@ -113,6 +113,19 @@ php bin/import-booking-file.php buchung.pdf       # einzelne Datei nachtragen
 php bin/import-booking-file.php buchung.pdf --dry-run
 ```
 
+**Angefasst werden nur** Mails von `channel-manager@secra.de`, deren Betreff mit
+`Buchungsbestätigung Nr` beginnt und die ein PDF im Anhang haben. Alles andere
+im Posteingang bleibt unberührt — auch dann, wenn ein PDF daran hängt. Beides
+ist über `IMAP_SENDER` und `IMAP_SUBJECT_PREFIX` einstellbar.
+
+Nach dem Absender wird serverseitig gesucht, nach dem Betreff nicht:
+`Buchungsbestätigung` enthält einen Umlaut, und `IMAP SEARCH` mit Nicht-ASCII
+ist je nach Server eine Wundertüte. Der Betreff wird deshalb in PHP geprüft —
+tolerant gegenüber vorangestelltem `WG:` und gegenüber der Schreibweise
+`Buchungsbestaetigung`. Der Absender wird zusätzlich exakt verglichen, weil
+`IMAP SEARCH FROM` als Teilzeichenkette sucht und sonst auch
+`channel-manager@nicht-secra.de` durchginge.
+
 Gelesen werden Buchungsnummer, Objektnummer, Zeitraum, Nächte, Reisende,
 Gastanschrift, Mietpreis, Endreinigung und Kaution. Daraus entsteht ein Entwurf
 mit drei Positionen: Übernachtung (7 %, Endpreis als `price_mode = total`),

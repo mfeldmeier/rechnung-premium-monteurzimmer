@@ -19,6 +19,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use Pmz\Domain\Booking;
 use Pmz\Import\BookingPdfReader;
+use Pmz\Import\MailFilter;
 use Pmz\Service\BookingImporter;
 use Pmz\Support\Env;
 use Webklex\PHPIMAP\ClientManager;
@@ -39,6 +40,11 @@ if ($host === '') {
 $inbox = Env::get('IMAP_FOLDER', 'INBOX');
 $done  = Env::get('IMAP_DONE_FOLDER', 'INBOX.Erledigt');
 $fail  = Env::get('IMAP_FAIL_FOLDER', 'INBOX.Fehler');
+
+// Nur die Benachrichtigungen des Channel Managers. Alles andere im Posteingang
+// bleibt unberuehrt - auch dann, wenn ein PDF daran haengt.
+$sender = strtolower(Env::get('IMAP_SENDER', 'channel-manager@secra.de'));
+$filter = new MailFilter($sender, Env::get('IMAP_SUBJECT_PREFIX', 'Buchungsbestätigung Nr'));
 
 $client = (new ClientManager())->make([
     'host'          => $host,
@@ -66,7 +72,10 @@ if ($folder === null) {
     exit(1);
 }
 
-$messages = $folder->query()->unseen()->leaveUnread()->get();
+// Nach Absender wird serverseitig gesucht, nach Betreff nicht: "Buchungs-
+// bestätigung" enthaelt ein Umlaut-Zeichen, und IMAP SEARCH mit Nicht-ASCII
+// ist je nach Server eine Wundertuete. Der Betreff wird deshalb hier geprueft.
+$messages = $folder->query()->unseen()->from($sender)->leaveUnread()->get();
 
 $gelesen       = 0;
 $angelegt      = 0;
@@ -74,13 +83,31 @@ $uebersprungen = 0;
 $fehler        = 0;
 
 foreach ($messages as $message) {
-    $betreff  = (string) $message->getSubject();
+    $betreff = (string) $message->getSubject();
+
+    $absender = array_map(
+        static fn ($von): string => (string) ($von->mail ?? ''),
+        $message->getFrom() ?? [],
+    );
+
+    if (!$filter->matchesSubject($betreff) || !$filter->isFromSender($absender)) {
+        continue;
+    }
+
     $anhaenge = $message->getAttachments()->filter(
         static fn ($a): bool => str_ends_with(strtolower((string) $a->getName()), '.pdf'),
     );
 
     if ($anhaenge->count() === 0) {
-        // Keine Bestaetigung, sondern irgendeine andere Mail. Unberuehrt lassen.
+        // Betreff passt, aber ohne PDF ist nichts zu holen. Sichtbar machen,
+        // statt stillschweigend zu uebergehen - das waere ein Formatwechsel.
+        $fehler++;
+        meldung('FEHLER', $betreff, ['Buchungsbestätigung ohne PDF-Anhang.']);
+
+        if (!$dryRun) {
+            $message->move($fail);
+        }
+
         continue;
     }
 
