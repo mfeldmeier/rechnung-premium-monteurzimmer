@@ -10,6 +10,7 @@ declare(strict_types=1);
  */
 
 use Pmz\Domain\LineItem;
+use Pmz\Domain\RecipientBlock;
 use Pmz\Domain\TaxCategory;
 use Pmz\Support\Format;
 
@@ -23,6 +24,12 @@ $join = static fn (array $parts): string => implode(
 
 $seller   = $invoice['seller'];
 $customer = $invoice['customer'];
+
+// Ist ein Anschriftenblock hinterlegt, gewinnt er gegen die Einzelfelder -
+// auch bei finalisierten Rechnungen, deren Snapshot daraus entstanden ist.
+$recipientLines = ($invoice['customer_freeform'] ?? null) !== null
+    ? RecipientBlock::parse((string) $invoice['customer_freeform'])->lines
+    : [];
 
 $isDraft  = $invoice['status'] === 'draft';
 $isStorno = $invoice['doc_type'] === 'credit_note';
@@ -254,16 +261,24 @@ $footerLine3 = $join([
 <table class="address">
     <tr>
         <td class="left">
-            <?php if ($customer['company'] !== ''): ?>
+            <?php if ($recipientLines !== []): ?>
+            <?php /* Freitextmodus: der Block steht genau so auf dem Papier,
+                     wie er eingegeben wurde. Das ist sein ganzer Zweck. */ ?>
+                <?php foreach ($recipientLines as $line): ?>
+            <div><?= $e($line) ?></div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <?php if ($customer['company'] !== ''): ?>
             <div><?= $e($customer['company']) ?></div>
-            <?php endif; ?>
-            <?php if ($customer['contact_name'] !== ''): ?>
+                <?php endif; ?>
+                <?php if ($customer['contact_name'] !== ''): ?>
             <div><?= $e($customer['contact_name']) ?></div>
-            <?php endif; ?>
-            <?php if ($customer['street'] !== ''): ?>
+                <?php endif; ?>
+                <?php if ($customer['street'] !== ''): ?>
             <div><?= $e($customer['street']) ?></div>
-            <?php endif; ?>
+                <?php endif; ?>
             <div><?= $e(trim($customer['postcode'] . ' ' . $customer['city'])) ?></div>
+            <?php endif; ?>
         </td>
         <td class="right">
             <div class="heading"><?= $e($heading) ?></div>

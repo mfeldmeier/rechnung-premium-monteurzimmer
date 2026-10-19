@@ -174,7 +174,11 @@ foreach (['brutto' => true, 'netto' => false] as $label => $pricesIncludeTax) {
         'service_from'       => '2026-10-09',
         'service_to'         => '2026-11-16',
         'subject'            => 'Unterbringung Ihrer Monteure im Zeitraum Oktober bis November 2026',
-        'customer_id'        => 1,
+        'customer_id'        => $pricesIncludeTax ? 1 : null,
+        // Einmal aus den Stammdaten, einmal als Anschriftenblock - beide Wege
+        // muessen im Adresskopf gleich sauber aussehen.
+        'customer_freeform'  => $pricesIncludeTax ? null : "Musterbau GmbH & Co. KG\n"
+            . "z. Hd. Frau Meier, Einkauf\nIndustriepark Nord 7, Zufahrt über Werkstor 3\n49084 Osnabrück",
         'customer'           => $customer,
         'seller'             => $seller,
         'payment_terms_text' => 'Zahlbar ohne Abzug innerhalb von 14 Tagen nach Rechnungserhalt auf das unten '

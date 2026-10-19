@@ -22,12 +22,16 @@ $isCredit = $invoice['doc_type'] === 'credit_note';
     <div>
         <h2>Kunde</h2>
         <p>
-            <?php foreach (['company', 'contact_name', 'street'] as $field): ?>
-                <?php if (($customer[$field] ?? '') !== ''): ?>
-                    <?= e($customer[$field]) ?><br>
-                <?php endif; ?>
-            <?php endforeach; ?>
-            <?= e(trim(($customer['postcode'] ?? '') . ' ' . ($customer['city'] ?? ''))) ?>
+            <?php if (($invoice['customer_freeform'] ?? null) !== null): ?>
+                <?= nl2br(e($invoice['customer_freeform'])) ?>
+            <?php else: ?>
+                <?php foreach (['company', 'contact_name', 'street'] as $field): ?>
+                    <?php if (($customer[$field] ?? '') !== ''): ?>
+                        <?= e($customer[$field]) ?><br>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                <?= e(trim(($customer['postcode'] ?? '') . ' ' . ($customer['city'] ?? ''))) ?>
+            <?php endif; ?>
         </p>
     </div>
     <div>

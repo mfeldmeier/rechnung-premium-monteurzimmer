@@ -878,8 +878,9 @@ textarea {
         visibility: visible;
     }
 
-    /* Sortieren per Ziehen ist auf dem Telefon nichts; die Pfeile reichen. */
-    .drag-col {
+    /* Sortieren per Ziehen ist auf dem Telefon nichts; die Pfeile reichen.
+       Mit td davor, sonst gewinnt die Regel ".items td { display: block }". */
+    .items td.drag-col {
         display: none;
     }
 
