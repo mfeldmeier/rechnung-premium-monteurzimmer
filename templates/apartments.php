@@ -14,6 +14,12 @@
             <label class="grow">Name
                 <input type="text" name="name" value="<?= e($row['name']) ?>" maxlength="100" required>
             </label>
+            <?php /* Die Objektnummer aus der secra-Bestaetigung. Nur damit
+                     findet der Buchungsimport die richtige Wohnung. */ ?>
+            <label class="narrow">Objekt-Nr.
+                <input type="text" name="external_ref" value="<?= e($row['external_ref'] ?? '') ?>"
+                       maxlength="40" inputmode="numeric" placeholder="310939">
+            </label>
             <label class="narrow">Betten
                 <input type="number" name="beds_default" value="<?= e($row['beds_default']) ?>" min="1" step="1">
             </label>
@@ -40,6 +46,7 @@
         <input type="hidden" name="action" value="create">
         <input type="hidden" name="is_active" value="1">
         <label class="grow">Name <input type="text" name="name" maxlength="100" required></label>
+        <label class="narrow">Objekt-Nr. <input type="text" name="external_ref" maxlength="40" inputmode="numeric" placeholder="310939"></label>
         <label class="narrow">Betten <input type="number" name="beds_default" value="2" min="1" step="1"></label>
         <label class="narrow">Reihenfolge <input type="number" name="sort_order" value="0" step="10"></label>
         <button type="submit" class="btn btn-primary">Anlegen</button>

@@ -101,6 +101,61 @@ Eingabe steht unverändert in `input_unit_price_cents` und `input_line_cents`.
 Ohne diese beiden Spalten müsste der Editor den Nettopreis zurückrechnen, und
 der Betrag würde bei jedem zweiten Speichern um einen Cent wandern.
 
+## Buchungen automatisch übernehmen
+
+secra schickt zu jeder Buchung eine Bestätigung als PDF. `bin/import-bookings.php`
+holt sie aus dem Postfach und legt daraus Rechnungsentwürfe an.
+
+```bash
+php bin/import-bookings.php                       # für den Cron, alle 10 Minuten
+php bin/import-bookings.php --dry-run             # nur zeigen, nichts speichern
+php bin/import-booking-file.php buchung.pdf       # einzelne Datei nachtragen
+php bin/import-booking-file.php buchung.pdf --dry-run
+```
+
+Gelesen werden Buchungsnummer, Objektnummer, Zeitraum, Nächte, Reisende,
+Gastanschrift, Mietpreis, Endreinigung und Kaution. Daraus entsteht ein Entwurf
+mit drei Positionen: Übernachtung (7 %, Endpreis als `price_mode = total`),
+Endreinigung (19 %) und Kaution (steuerfrei).
+
+> **Der Import rechnet nichts selbst.** Er geht durch denselben
+> `InvoiceService::saveDraft()` wie eine von Hand getippte Rechnung. Rundung
+> und Steuergruppen leben an genau einer Stelle.
+
+**Was den Import stoppt:** Ergeben Mietpreis und Endreinigung nicht den
+ausgewiesenen Reisepreis, oder passen die angegebenen Nächte nicht zum Zeitraum,
+entsteht kein Entwurf, sondern eine Fehlermeldung. Eine Formatänderung bei secra
+fällt damit sofort auf, statt eine falsche Rechnung zu erzeugen.
+
+**Objektnummer zuordnen:** Unter *Wohnungen* trägt jede Wohnung ihre
+Objekt-Nr. aus der Bestätigung ein (z. B. `310939`). Fehlt sie, entsteht der
+Entwurf trotzdem — nur ohne Wohnung, mit Hinweis.
+
+**Doppelte Zustellung:** Die Buchungsnummer steht in `pmz_invoices.booking_ref`
+und ist eindeutig. Dieselbe Mail zweimal verarbeitet ergibt einen Entwurf.
+
+**Nicht verarbeitet werden** Stornierungen und Buchungsänderungen. Die bleiben
+bewusst Handarbeit — eine automatisch geänderte Rechnung ist riskanter als ein
+Handgriff.
+
+### Postfach einrichten
+
+Die Zugangsdaten stehen in der `.env` (siehe `.env.example`). Auf dem Server
+liegt das Postfach auf derselben Maschine, deshalb `IMAP_HOST=127.0.0.1`: so
+verlassen weder Passwort noch Anhang den Rechner. Das Zertifikat trägt den
+öffentlichen Hostnamen und passt nie zur IP — daher `IMAP_VALIDATE_CERT=0`.
+Zeigt `IMAP_HOST` nach außen, gehört die Prüfung wieder auf `1`.
+
+Die Ordner aus `IMAP_DONE_FOLDER` und `IMAP_FAIL_FOLDER` müssen im Postfach
+existieren. Verarbeitete Mails wandern nach *Erledigt*, nicht verwertbare nach
+*Fehler* — so läuft der Posteingang nicht zu und ein Fehlschlag bleibt sichtbar.
+
+Cron in Plesk:
+
+```
+*/10 * * * * php /var/www/vhosts/.../httpdocs/bin/import-bookings.php
+```
+
 ## PDF-Vorschau und Layoutprüfung
 
 Im Editor zeigt `PDF-Vorschau` den aktuellen Formularstand als PDF an, ohne zu

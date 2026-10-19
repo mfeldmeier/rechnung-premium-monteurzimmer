@@ -5,14 +5,16 @@
     "license": "proprietary",
     "require": {
         "php": ">=8.3",
-        "ext-pdo": "*",
-        "ext-mbstring": "*",
-        "ext-json": "*",
-        "ext-gd": "*",
         "ext-dom": "*",
+        "ext-gd": "*",
+        "ext-json": "*",
         "ext-libxml": "*",
+        "ext-mbstring": "*",
+        "ext-pdo": "*",
+        "horstoeko/zugferd": "^1.0",
         "mpdf/mpdf": "^8.2",
-        "horstoeko/zugferd": "^1.0"
+        "smalot/pdfparser": "^2.13",
+        "webklex/php-imap": "^6.2"
     },
     "require-dev": {
         "phpunit/phpunit": "^11.5"

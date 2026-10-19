@@ -1,0 +1,72 @@
+Premium Monteurzimmer
+Herr
+Max Mustermann
+Musterweg 1
+34125 Kassel
+16.10.2026
+Sie haben eine neue Buchung 3100001
+Sehr geehrter Herr Mustermann,
+wir freuen uns, Ihnen eine neue Buchung für Ihre Unterkunft mitteilen zu können.
+Diese Buchung wurde über secra Premium Booking.com mit der externen Buchungsnummer 6700000001 getätigt.
+Der Mietvertrag kommt zustande zwischen Ihnen und:
+Frau Ana Marić, Ulica kralja Tomislava 2E, 10360 Sesvete (Mieter).
+Unterkunft
+Ihre Unterkunft:
+Ferienwohnung Orange 1.OG Kassel: 1-4 Betten | Zentral & Ruhig | 3 Min. zur Tram und
+Zug (Objekt Nr. 310939)
+Objektart:	Ferienwohnung/App.
+Anschrift:	Brückenhofstraße 2, 34132 Kassel
+Link zur Unterkunft:	https://www.fewo-channelmanager.de/integration/v2/object/310939
+Aufenthalt
+Buchungsnummer:	3100001
+Reisezeit:	02.11.2026 bis 10.11.2026
+Übernachtungen:	8 Nächte
+Reisende:	2 Erwachsene
+Gastdaten:	Frau Ana Marić
+Ulica kralja Tomislava 2E
+10360 Sesvete
+-+385 91 234 5678
+gast.123456@guest.booking.example
+
+Check-In:	Rund um die Uhr möglich.
+Check-Out:	Möglich bis 10:00 Uhr.
+
+Serviceleistungen:	2x Bettwäsche, 2x Handtücher
+
+Leistung und Preise
+Aufpreisbuchung! Der reguläre Reisepreis (EUR 540,--) wurde erhöht um einen Aufpreis (EUR 57,83) zum Ausgleich erhöhter
+Portalprovision.
+Berechnungsgrundlage (provisionsfähiger Reisepreis):	EUR 540,--
+Provision brutto:	EUR 77,11
+Provision netto:	EUR 64,80
+Die Mieteinnahme und Provision sind vorläufige Werte. Hier kann sich durch Stornierung oder eine Buchungsänderung der
+Preis verändern. Sie erhalten nach Abreise eine Abrechnung von uns.
+_________________________________________________________________
+Zahlungshinweis an Ihren Gast
+Gebuchte Leistungen
+Bezeichnung	Preis	Anzahl Gesamtpreis
+Mietpreis	EUR 537,83	1	EUR 537,83
+Endreinigung	EUR 60,--	1	EUR 60,--
+Bettwäsche	im Preis enthalten	2	im Preis enthalten
+Handtücher	im Preis enthalten	2	im Preis enthalten
+Reisepreis	EUR 597,83
+Da die Anreise in weniger als 28 Tagen erfolgt, wurde der Gast darauf hingewiesen, dass der Gesamtbetrag in Höhe von EUR
+597,83 spätestens innerhalb von 7 Tagen nach der Buchung zu zahlen oder direkt mit Ihnen zu besprechen ist.
+Wichtig: Bitte stellen Sie sicher, dass der vollständige Reisepreis spätestens beim Check-in bezahlt ist. Andernfalls sollte die
+Schlüsselübergabe nicht erfolgen.
+* Der reguläre Mietpreis wurde erhöht um einen Aufpreis zum Ausgleich erhöhter Portalprovision.
+Der Gast zahlt eine Kaution in Höhe von EUR 100,-- als Sicherheit an den Gastgeber. Der Gastgeber zahlt die Kaution nach
+Abreise zurück, sofern keine Schäden entstanden sind.
+Zahlung Gesamtpreis
+Betrag:	EUR 597,83
+bis zum:	umgehend
+Zahlungsart:	Überweisung
+Bankverbindung
+IBAN:	DE02 5005 0201 0000 0000 00
+BIC:	HELADEF1822
+Kontoinhaber:	Max Mustermann
+_________________________________________________________________
+Bei kurzfristigen Buchungen (weniger als 7 Werktage vor Anreise) empfehlen wir, die Zahlungsart (Überweisung oder
+Barzahlung) vorab direkt mit dem Gast zu klären.
+Mit freundlichen Grüßen
+Ihr secra channel manager-Team
