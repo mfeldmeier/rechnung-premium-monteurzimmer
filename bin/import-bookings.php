@@ -30,10 +30,23 @@ $dryRun = in_array('--dry-run', $argv, true);
 $reader = new BookingPdfReader();
 $import = new BookingImporter();
 
-$host = Env::get('IMAP_HOST', '');
+// Das Postfach liegt auf derselben Maschine - dafuer braucht es kein Secret.
+$host = Env::get('IMAP_HOST', '127.0.0.1');
+$user = Env::get('IMAP_USER', '');
+$pass = Env::get('IMAP_PASS', '');
 
-if ($host === '') {
-    fwrite(STDERR, "IMAP_HOST ist nicht gesetzt - ohne Postfach kein Import.\n");
+// Gefragt ist nach den Zugangsdaten, nicht nach dem Host: der hat eine
+// brauchbare Vorgabe, Benutzer und Passwort nicht.
+if ($user === '' || $pass === '') {
+    fwrite(STDERR, sprintf(
+        "Zugangsdaten zum Postfach fehlen (%s).\n"
+        . "Sie entstehen beim Deploy aus den GitHub-Secrets IMAP_USER und IMAP_PASS.\n"
+        . "Steht in der .env auf dem Server keine IMAP-Zeile, lief der Deploy noch mit der alten Vorlage.\n",
+        implode(' und ', array_filter([
+            $user === '' ? 'IMAP_USER' : '',
+            $pass === '' ? 'IMAP_PASS' : '',
+        ])),
+    ));
     exit(1);
 }
 
@@ -53,8 +66,8 @@ $client = (new ClientManager())->make([
     // Auf demselben Server laeuft das ueber 127.0.0.1; dort traegt das
     // Zertifikat den oeffentlichen Hostnamen und passt nie zur IP.
     'validate_cert' => Env::get('IMAP_VALIDATE_CERT', '1') === '1',
-    'username'      => Env::get('IMAP_USER', ''),
-    'password'      => Env::get('IMAP_PASS', ''),
+    'username'      => $user,
+    'password'      => $pass,
     'protocol'      => 'imap',
 ]);
 
