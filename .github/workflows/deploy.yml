@@ -52,8 +52,23 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PREFIX: ${{ secrets.DB_PREFIX }}
+          IMAP_USER: ${{ secrets.IMAP_USER }}
+          IMAP_PASS: ${{ secrets.IMAP_PASS }}
+          IMAP_HOST: ${{ secrets.IMAP_HOST }}
+          IMAP_PORT: ${{ secrets.IMAP_PORT }}
+          IMAP_FOLDER: ${{ secrets.IMAP_FOLDER }}
+          IMAP_DONE_FOLDER: ${{ secrets.IMAP_DONE_FOLDER }}
+          IMAP_FAIL_FOLDER: ${{ secrets.IMAP_FAIL_FOLDER }}
+          IMAP_SENDER: ${{ secrets.IMAP_SENDER }}
         run: |
           test -n "${DB_PASS}" || { echo "::error::Secret DB_PASS ist leer"; exit 1; }
+
+          # Ohne Postfach laeuft die Anwendung weiter, nur der Buchungsimport
+          # nicht - deshalb Warnung statt Abbruch.
+          if [ -z "${IMAP_USER}" ] || [ -z "${IMAP_PASS}" ]; then
+            echo "::warning::IMAP_USER oder IMAP_PASS fehlt - bin/import-bookings.php wird nichts abholen."
+          fi
+
           {
             echo "APP_ENV=prod"
             echo "APP_URL=${APP_URL:-https://rechnung.premium-monteurzimmer.com}"
@@ -64,6 +79,21 @@ jobs:
             echo "DB_PASS=${DB_PASS}"
             echo "DB_PREFIX=${DB_PREFIX:-pmz_}"
             echo "STORAGE_PATH=storage"
+            # Postfach mit den secra-Buchungsbestaetigungen. Standard ist das
+            # Postfach auf derselben Maschine: so verlaesst weder Passwort noch
+            # Anhang den Server. Das Zertifikat traegt den oeffentlichen
+            # Hostnamen und passt nie zur IP - daher die Pruefung aus.
+            echo "IMAP_HOST=${IMAP_HOST:-127.0.0.1}"
+            echo "IMAP_PORT=${IMAP_PORT:-993}"
+            echo "IMAP_ENCRYPTION=ssl"
+            echo "IMAP_VALIDATE_CERT=0"
+            echo "IMAP_USER=${IMAP_USER}"
+            echo "IMAP_PASS=${IMAP_PASS}"
+            echo "IMAP_FOLDER=${IMAP_FOLDER:-INBOX}"
+            echo "IMAP_DONE_FOLDER=${IMAP_DONE_FOLDER:-INBOX.Erledigt}"
+            echo "IMAP_FAIL_FOLDER=${IMAP_FAIL_FOLDER:-INBOX.Fehler}"
+            echo "IMAP_SENDER=${IMAP_SENDER:-channel-manager@secra.de}"
+            echo "IMAP_SUBJECT_PREFIX=Buchungsbestätigung Nr"
           } > .env
 
       - name: SSH vorbereiten
