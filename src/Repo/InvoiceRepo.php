@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pmz\Repo;
 
 use PDO;
+use Pmz\Domain\RecipientBlock;
 use Pmz\Support\Db;
 
 final class InvoiceRepo
@@ -49,12 +50,16 @@ final class InvoiceRepo
             return null;
         }
 
+        $freeform = ($row['customer_freeform'] ?? '') !== '' ? (string) $row['customer_freeform'] : null;
+
         if ($row['status'] === 'draft') {
-            $customerRow = $row['customer_id'] !== null
-                ? $this->customers->find((int) $row['customer_id'])
-                : null;
-            $customer = $this->customers->snapshot($customerRow);
-            $seller   = $this->settings->seller();
+            // Im Freitextmodus steht die Anschrift im Block, nicht im Stamm.
+            $customer = $freeform !== null
+                ? RecipientBlock::parse($freeform)->snapshot
+                : $this->customers->snapshot(
+                    $row['customer_id'] !== null ? $this->customers->find((int) $row['customer_id']) : null,
+                );
+            $seller = $this->settings->seller();
         } else {
             $customer = $this->decode($row['customer_snapshot']);
             $seller   = $this->decode($row['seller_snapshot']);
@@ -70,6 +75,7 @@ final class InvoiceRepo
             'service_to'         => $row['service_to'] !== null ? (string) $row['service_to'] : null,
             'subject'            => (string) $row['subject'],
             'customer_id'        => $row['customer_id'] !== null ? (int) $row['customer_id'] : null,
+            'customer_freeform'  => $freeform,
             'customer'           => $customer,
             'seller'             => $seller,
             'payment_terms_text' => (string) $row['payment_terms_text'],
@@ -178,8 +184,11 @@ final class InvoiceRepo
             $params[] = (int) $filter['year'];
         }
         if (trim((string) ($filter['q'] ?? '')) !== '') {
-            $like     = '%' . str_replace(['%', '_'], ['\%', '\_'], trim((string) $filter['q'])) . '%';
-            $where[]  = '(`number` LIKE ? OR `customer_snapshot` LIKE ?)';
+            $like    = '%' . str_replace(['%', '_'], ['\%', '\_'], trim((string) $filter['q'])) . '%';
+            // Entwuerfe im Freitextmodus haben noch keinen Snapshot - ohne den
+            // Block waeren sie ueber den Kundennamen nicht auffindbar.
+            $where[] = '(`number` LIKE ? OR `customer_snapshot` LIKE ? OR `customer_freeform` LIKE ?)';
+            $params[] = $like;
             $params[] = $like;
             $params[] = $like;
         }
@@ -209,9 +218,12 @@ final class InvoiceRepo
         $stmt->execute();
 
         $rows = array_map(function (array $row): array {
-            $row['customer'] = $row['status'] === 'draft' && $row['customer_id'] !== null
-                ? $this->customers->snapshot($this->customers->find((int) $row['customer_id']))
-                : $this->decode($row['customer_snapshot']);
+            $row['customer'] = match (true) {
+                $row['status'] !== 'draft'            => $this->decode($row['customer_snapshot']),
+                ($row['customer_freeform'] ?? '') !== '' => RecipientBlock::parse((string) $row['customer_freeform'])->snapshot,
+                $row['customer_id'] !== null          => $this->customers->snapshot($this->customers->find((int) $row['customer_id'])),
+                default                               => $this->customers->snapshot(null),
+            };
 
             return $row;
         }, $stmt->fetchAll());

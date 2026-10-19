@@ -15,6 +15,7 @@ $action      = '/rechnungen/' . $slug . '/speichern';
 $previewPath = '/rechnungen/' . $slug . '/vorschau';
 $customer    = $invoice['customer'];
 $grossPrices = (bool) ($invoice['prices_include_tax'] ?? true);
+$freeform    = $invoice['customer_freeform'] ?? null;
 
 $seed = [
     'items'      => array_map(static fn (array $item): array => [
@@ -76,6 +77,37 @@ $seed = [
         <div id="kunde" data-selected="<?= e($invoice['customer_id'] ?? '') ?>">
             <h2>Kunde</h2>
 
+            <?php /* Zwei Wege zum selben Ziel. Fuer Gelegenheitskunden ist das
+                     Pflegen einzelner Felder mehr Aufwand als die Rechnung. */ ?>
+            <fieldset class="pricebasis" id="kunde-modus">
+                <legend>Empfänger erfassen als</legend>
+                <label class="check">
+                    <input type="radio" name="customer_mode" value="stamm"<?= $freeform === null ? ' checked' : '' ?>>
+                    Kunde aus den Stammdaten
+                </label>
+                <label class="check">
+                    <input type="radio" name="customer_mode" value="freitext"<?= $freeform !== null ? ' checked' : '' ?>>
+                    Anschrift als Text
+                </label>
+            </fieldset>
+
+            <div data-customer-mode="freitext" hidden>
+                <label>
+                    Rechnungsempfänger
+                    <textarea name="customer_freeform" rows="5"
+                              placeholder="Musterbau GmbH&#10;z. Hd. Frau Meier&#10;Industriepark Nord 7&#10;49084 Osnabrück"><?= e($freeform ?? '') ?></textarea>
+                </label>
+                <p class="muted small">
+                    Steht genau so auf der Rechnung. Für die E-Rechnung werden Ort und Land
+                    aus der Zeile mit der Postleitzahl gelesen – die gehört ans Ende.
+                </p>
+                <label class="check">
+                    <input type="checkbox" name="remember_customer" value="1">
+                    Als Kunde merken
+                </label>
+            </div>
+
+            <div data-customer-mode="stamm">
             <div class="customer-search" data-hide-when-selected>
                 <label>
                     Kunde suchen
@@ -113,6 +145,7 @@ $seed = [
                     <summary>USt-IdNr. ergänzen <span class="muted small">(optional)</span></summary>
                     <label>USt-IdNr. <input type="text" name="customer[vat_id]" data-customer="vat_id" value="<?= e($customer['vat_id'] ?? '') ?>" maxlength="30"></label>
                 </details>
+            </div>
             </div>
         </div>
     </section>

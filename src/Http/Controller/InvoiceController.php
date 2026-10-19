@@ -7,6 +7,7 @@ namespace Pmz\Http\Controller;
 use DomainException;
 use InvalidArgumentException;
 use Pmz\Domain\LineItem;
+use Pmz\Domain\RecipientBlock;
 use Pmz\Domain\TaxCategory;
 use Pmz\Http\Flash;
 use Pmz\Http\Request;
@@ -292,6 +293,7 @@ final class InvoiceController extends BaseController
             'service_to'         => null,
             'subject'            => $this->settings->get('invoice_subject'),
             'customer_id'        => null,
+            'customer_freeform'  => null,
             'customer'           => $this->customers->snapshot(null),
             'seller'             => $this->settings->seller(),
             'payment_terms_text' => $this->settings->get('payment_terms_text'),
@@ -334,6 +336,7 @@ final class InvoiceController extends BaseController
         $invoice['payment_terms_text'] = (string) $input['payment_terms_text'];
         $invoice['closing_text']       = (string) $input['closing_text'];
         $invoice['prices_include_tax'] = (bool) ($input['prices_include_tax'] ?? true);
+        $invoice['customer_freeform']  = $input['customer_freeform'] ?? null;
         $invoice['customer']           = $customer ?? $this->customers->snapshot(
             $input['customer_id'] !== null ? $this->customers->find((int) $input['customer_id']) : null,
         );
@@ -378,6 +381,21 @@ final class InvoiceController extends BaseController
      */
     private function resolveCustomer(Request $r): ?int
     {
+        $freeform = $this->freeformFromRequest($r);
+
+        if ($freeform !== null) {
+            // Im Freitextmodus entstehen Stammdaten nur auf ausdruecklichen
+            // Wunsch - sonst fuellt sich der Kundenstamm mit Eintraegen, die
+            // nie wieder gebraucht werden.
+            if ((string) $r->post('remember_customer', '') !== '1') {
+                return null;
+            }
+
+            $block = RecipientBlock::parse($freeform);
+
+            return $block->isComplete() ? $this->customers->create($block->snapshot) : null;
+        }
+
         $selected = $this->selectedCustomerId($r);
         if ($selected !== null) {
             return $selected;
@@ -409,11 +427,33 @@ final class InvoiceController extends BaseController
      */
     private function customerFromRequest(Request $r): ?array
     {
+        $freeform = $this->freeformFromRequest($r);
+
+        if ($freeform !== null) {
+            return RecipientBlock::parse($freeform)->snapshot;
+        }
+
         if ($this->selectedCustomerId($r) !== null) {
             return null;
         }
 
         return $this->customers->snapshot($this->customerFields($r));
+    }
+
+    /**
+     * Der Anschriftenblock, sofern der Freitextmodus gewaehlt und er nicht leer
+     * ist. Der gewaehlte Modus entscheidet, nicht der stehengebliebene Inhalt
+     * des jeweils anderen Feldes.
+     */
+    private function freeformFromRequest(Request $r): ?string
+    {
+        if ((string) $r->post('customer_mode', 'stamm') !== 'freitext') {
+            return null;
+        }
+
+        $text = RecipientBlock::parse((string) $r->post('customer_freeform', ''))->text();
+
+        return $text === '' ? null : $text;
     }
 
     /** @return array<string,string> */
@@ -450,7 +490,8 @@ final class InvoiceController extends BaseController
             'service_from'       => $this->nullIfBlank($r->post('service_from')),
             'service_to'         => $this->nullIfBlank($r->post('service_to')),
             'subject'            => trim((string) $r->post('subject', '')),
-            'customer_id'        => $customerId,
+            'customer_id'        => $this->freeformFromRequest($r) !== null ? null : $customerId,
+            'customer_freeform'  => $this->freeformFromRequest($r),
             'payment_terms_text' => (string) $r->post('payment_terms_text', ''),
             'closing_text'       => (string) $r->post('closing_text', ''),
             // Ohne Angabe bleibt es beim bisherigen Verhalten: brutto.

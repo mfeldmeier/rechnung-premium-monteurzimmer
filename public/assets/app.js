@@ -101,6 +101,34 @@
 
     // ------------------------------------------------------------ Kundenauswahl
 
+    /**
+     * Stammkunde oder Anschrift als Text. Was nicht gewaehlt ist, wird
+     * ausgeblendet - mitgeschickt wird es trotzdem, der Server entscheidet
+     * anhand des Modus und nicht anhand stehengebliebener Felder.
+     */
+    function initCustomerMode() {
+        var inputs = document.querySelectorAll('[name="customer_mode"]');
+
+        if (inputs.length === 0) {
+            return;
+        }
+
+        function apply() {
+            var selected = document.querySelector('[name="customer_mode"]:checked');
+            var mode = selected === null ? 'stamm' : selected.value;
+
+            document.querySelectorAll('[data-customer-mode]').forEach(function (box) {
+                box.hidden = box.dataset.customerMode !== mode;
+            });
+        }
+
+        inputs.forEach(function (input) {
+            input.addEventListener('change', apply);
+        });
+
+        apply();
+    }
+
     function initCustomerPicker() {
         var box = document.getElementById('kunde');
         var hidden = document.getElementById('customer_id');
@@ -669,6 +697,7 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         initConfirmForms();
+        initCustomerMode();
         initCustomerPicker();
         initInvoiceEditor();
     });

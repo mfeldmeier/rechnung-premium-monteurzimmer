@@ -9,6 +9,7 @@ use PDO;
 use Pmz\Domain\Calculator;
 use Pmz\Domain\LineItem;
 use Pmz\Domain\NumberGenerator;
+use Pmz\Domain\RecipientBlock;
 use Pmz\Domain\TaxCategory;
 use Pmz\Domain\Totals;
 use Pmz\Repo\CustomerRepo;
@@ -54,6 +55,9 @@ final class InvoiceService
             'customer_id'        => isset($input['customer_id']) && $input['customer_id'] !== ''
                 ? (int) $input['customer_id']
                 : null,
+            // Gefuellt heisst Freitextmodus. Der Block gehoert an die Rechnung,
+            // nicht an den Kunden - nur er kennt die Zeilenaufteilung des PDFs.
+            'customer_freeform'  => $this->nullIfBlank($input['customer_freeform'] ?? null),
             'payment_terms_text' => (string) ($input['payment_terms_text'] ?? $this->settings->get('payment_terms_text')),
             'closing_text'       => (string) ($input['closing_text'] ?? $this->settings->get('closing_text')),
             'prices_include_tax' => $pricesIncludeTax ? 1 : 0,
@@ -125,10 +129,7 @@ final class InvoiceService
                 throw new DomainException('Eine Rechnung ohne Positionen kann nicht finalisiert werden.');
             }
 
-            $customerRow = $row['customer_id'] !== null ? $this->customers->find((int) $row['customer_id']) : null;
-            if ($customerRow === null) {
-                throw new DomainException('Ohne Kunde keine Rechnung.');
-            }
+            $customerSnapshot = $this->snapshotForFinalizing($row);
 
             $year   = (int) substr((string) $row['invoice_date'], 0, 4);
             $number = $this->numberGenerator()->allocate($pdo, $year);
@@ -138,7 +139,7 @@ final class InvoiceService
                 'number'            => $number['number'],
                 'number_seq'        => $number['seq'],
                 'number_year'       => $number['year'],
-                'customer_snapshot' => $this->encode($this->customers->snapshot($customerRow)),
+                'customer_snapshot' => $this->encode($customerSnapshot),
                 'seller_snapshot'   => $this->encode($this->settings->seller()),
                 'finalized_at'      => date('Y-m-d H:i:s'),
             ]);
@@ -183,6 +184,7 @@ final class InvoiceService
                 'service_to'         => $original['service_to'],
                 'subject'            => $original['subject'],
                 'customer_id'        => $original['customer_id'],
+                'customer_freeform'  => $original['customer_freeform'] ?? null,
                 'customer_snapshot'  => $original['customer_snapshot'],
                 'seller_snapshot'    => $original['seller_snapshot'],
                 'payment_terms_text' => $original['payment_terms_text'],
@@ -209,6 +211,39 @@ final class InvoiceService
 
             return $stornoId;
         });
+    }
+
+    /**
+     * Welche Anschrift beim Finalisieren eingefroren wird.
+     *
+     * Im Freitextmodus wird sie aus dem Block gelesen. Erst hier wird das zur
+     * Bedingung: ZUGFeRD verlangt Name, Ort und Land (BT-44, BT-50, BT-53),
+     * und ab dem Finalisieren gibt es keine Gelegenheit mehr nachzubessern.
+     *
+     * @param  array<string,mixed> $row Rohzeile laut InvoiceRepo::findRaw()
+     * @return array<string,string>
+     */
+    private function snapshotForFinalizing(array $row): array
+    {
+        $freeform = $this->nullIfBlank($row['customer_freeform'] ?? null);
+
+        if ($freeform !== null) {
+            $block = RecipientBlock::parse($freeform);
+
+            if (!$block->isComplete()) {
+                throw new DomainException('Rechnungsempfänger: ' . $block->problem);
+            }
+
+            return $block->snapshot;
+        }
+
+        $customerRow = $row['customer_id'] !== null ? $this->customers->find((int) $row['customer_id']) : null;
+
+        if ($customerRow === null) {
+            throw new DomainException('Ohne Kunde keine Rechnung.');
+        }
+
+        return $this->customers->snapshot($customerRow);
     }
 
     private function numberGenerator(): NumberGenerator
