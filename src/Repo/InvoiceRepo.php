@@ -25,6 +25,18 @@ final class InvoiceRepo
         return $stmt->fetch() ?: null;
     }
 
+    /** Gibt es zu dieser Buchung schon eine Rechnung? Schuetzt vor Doppelimport. */
+    public function findIdByBookingRef(string $bookingRef): ?int
+    {
+        $table = Db::table('invoices');
+        $stmt  = Db::pdo()->prepare("SELECT `id` FROM {$table} WHERE `booking_ref` = ? LIMIT 1");
+        $stmt->execute([$bookingRef]);
+
+        $id = $stmt->fetchColumn();
+
+        return $id === false ? null : (int) $id;
+    }
+
     public function itemsRaw(int $invoiceId): array
     {
         $table = Db::table('invoice_items');
@@ -76,6 +88,7 @@ final class InvoiceRepo
             'subject'            => (string) $row['subject'],
             'customer_id'        => $row['customer_id'] !== null ? (int) $row['customer_id'] : null,
             'customer_freeform'  => $freeform,
+            'booking_ref'        => ($row['booking_ref'] ?? '') !== '' ? (string) $row['booking_ref'] : null,
             'customer'           => $customer,
             'seller'             => $seller,
             'payment_terms_text' => (string) $row['payment_terms_text'],

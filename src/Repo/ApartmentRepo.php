@@ -35,14 +35,37 @@ final class ApartmentRepo
         return $stmt->fetch() ?: null;
     }
 
+    /**
+     * Die Objektnummer aus der secra-Buchungsbestaetigung ("Objekt Nr. 310939")
+     * zeigt auf genau eine Wohnung. Auch inaktive zaehlen: eine Buchung kann
+     * noch laufen, wenn die Wohnung schon aus dem Angebot ist.
+     */
+    public function findByExternalRef(string $ref): ?array
+    {
+        $ref = trim($ref);
+
+        if ($ref === '') {
+            return null;
+        }
+
+        $table = Db::table('apartments');
+        $stmt  = Db::pdo()->prepare(
+            "SELECT * FROM {$table} WHERE `external_ref` = ? ORDER BY `is_active` DESC, `id` LIMIT 1"
+        );
+        $stmt->execute([$ref]);
+
+        return $stmt->fetch() ?: null;
+    }
+
     public function create(array $data): int
     {
         $table = Db::table('apartments');
         $stmt  = Db::pdo()->prepare(
-            "INSERT INTO {$table} (`name`, `beds_default`, `sort_order`, `is_active`) VALUES (?, ?, ?, 1)"
+            "INSERT INTO {$table} (`name`, `external_ref`, `beds_default`, `sort_order`, `is_active`) VALUES (?, ?, ?, ?, 1)"
         );
         $stmt->execute([
             trim((string) $data['name']),
+            $this->nullIfBlank($data['external_ref'] ?? null),
             (int) ($data['beds_default'] ?? 1),
             (int) ($data['sort_order'] ?? 0),
         ]);
@@ -54,15 +77,23 @@ final class ApartmentRepo
     {
         $table = Db::table('apartments');
         $stmt  = Db::pdo()->prepare(
-            "UPDATE {$table} SET `name` = ?, `beds_default` = ?, `sort_order` = ?, `is_active` = ? WHERE `id` = ?"
+            "UPDATE {$table} SET `name` = ?, `external_ref` = ?, `beds_default` = ?, `sort_order` = ?, `is_active` = ? WHERE `id` = ?"
         );
         $stmt->execute([
             trim((string) $data['name']),
+            $this->nullIfBlank($data['external_ref'] ?? null),
             (int) ($data['beds_default'] ?? 1),
             (int) ($data['sort_order'] ?? 0),
             (int) ($data['is_active'] ?? 1),
             $id,
         ]);
+    }
+
+    private function nullIfBlank(mixed $value): ?string
+    {
+        $value = is_scalar($value) ? trim((string) $value) : '';
+
+        return $value === '' ? null : $value;
     }
 
     /**

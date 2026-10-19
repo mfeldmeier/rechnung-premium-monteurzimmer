@@ -322,6 +322,56 @@ final class CalculatorTest extends TestCase
         self::assertSame(10000, Calculator::compute([$brutto])->netTotalCents);
     }
 
+    /**
+     * Was aus einer importierten secra-Buchung wird: Endpreis 537,83 fuer
+     * 2 Gaeste und 8 Naechte, Endreinigung 60,00, Kaution 100,00. Haelt fest,
+     * dass der Portalaufschlag im Mietpreis bleibt und nicht in der Steuer
+     * verschwindet.
+     */
+    public function testBuchungsimportErgibtDieErwarteteSteuerverteilung(): void
+    {
+        $totals = Calculator::compute([
+            new LineItem(
+                kind: LineItem::KIND_ACCOMMODATION,
+                description: 'Wohnung Orange',
+                quantity: 16.0,
+                unitPriceGrossCents: 0,
+                taxRateBp: 700,
+                beds: 2,
+                nights: 8,
+                dateFrom: '2026-11-02',
+                dateTo: '2026-11-10',
+                priceMode: LineItem::MODE_TOTAL,
+                lineTotalGrossCents: 53783,
+            ),
+            new LineItem(LineItem::KIND_CLEANING, 'Endreinigung', 1.0, 6000, 1900),
+            new LineItem(
+                LineItem::KIND_DEPOSIT,
+                'Kaution',
+                1.0,
+                10000,
+                0,
+                TaxCategory::EXEMPT,
+                'Kaution – durchlaufender Posten',
+            ),
+        ]);
+
+        // Der Endpreis bleibt auf den Cent stehen, auch wenn 537,83 auf 16
+        // Einheiten keinen glatten Nachtpreis ergibt.
+        self::assertSame(53783, $totals->lineGrossCents[0]);
+
+        [$sieben, $neunzehn, $befreit] = $totals->groups;
+
+        self::assertSame(50264, $sieben->netCents);
+        self::assertSame(3519, $sieben->taxCents);
+        self::assertSame(5042, $neunzehn->netCents);
+        self::assertSame(958, $neunzehn->taxCents);
+        self::assertSame(10000, $befreit->netCents);
+
+        // Reisepreis 597,83 plus Kaution 100,00.
+        self::assertSame('697,83 €', Format::euro($totals->grossTotalCents));
+    }
+
     private function vorlagePositionen(): array
     {
         return [

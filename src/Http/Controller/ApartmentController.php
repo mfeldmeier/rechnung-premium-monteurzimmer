@@ -39,6 +39,9 @@ final class ApartmentController extends BaseController
 
         $data = [
             'name'         => $name,
+            // Objektnummer bei secra; ueber sie findet der Buchungsimport die
+            // Wohnung wieder.
+            'external_ref' => trim((string) $r->post('external_ref', '')),
             'beds_default' => max(1, (int) $r->post('beds_default', '1')),
             'sort_order'   => (int) $r->post('sort_order', '0'),
             'is_active'    => $r->post('is_active') !== null ? 1 : 0,

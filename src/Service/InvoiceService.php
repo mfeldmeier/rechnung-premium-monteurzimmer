@@ -58,6 +58,10 @@ final class InvoiceService
             // Gefuellt heisst Freitextmodus. Der Block gehoert an die Rechnung,
             // nicht an den Kunden - nur er kennt die Zeilenaufteilung des PDFs.
             'customer_freeform'  => $this->nullIfBlank($input['customer_freeform'] ?? null),
+            // Nur beim Import aus einer Buchungsbestaetigung gesetzt, und dort
+            // eindeutig - sonst erzeugt dieselbe Mail zwei Entwuerfe. Ein
+            // Storno erbt sie bewusst nicht, das braeche den Index.
+            'booking_ref'        => $this->nullIfBlank($input['booking_ref'] ?? null),
             'payment_terms_text' => (string) ($input['payment_terms_text'] ?? $this->settings->get('payment_terms_text')),
             'closing_text'       => (string) ($input['closing_text'] ?? $this->settings->get('closing_text')),
             'prices_include_tax' => $pricesIncludeTax ? 1 : 0,
