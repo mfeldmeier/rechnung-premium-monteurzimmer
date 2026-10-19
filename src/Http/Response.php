@@ -34,6 +34,17 @@ final class Response
 
     public static function download(string $bytes, string $filename, string $mime): self
     {
+        return self::attachment($bytes, $filename, $mime, 'attachment');
+    }
+
+    /** Wie download(), aber der Browser zeigt die Datei an, statt sie zu speichern. */
+    public static function inline(string $bytes, string $filename, string $mime): self
+    {
+        return self::attachment($bytes, $filename, $mime, 'inline');
+    }
+
+    private static function attachment(string $bytes, string $filename, string $mime, string $disposition): self
+    {
         // Dateiname nach RFC 6266 doppelt angeben: ASCII-Fallback plus UTF-8-Variante,
         // sonst verstuemmeln alte Clients Umlaute in Rechnungsnamen.
         $ascii = preg_replace('/[^A-Za-z0-9._-]/', '_', $filename) ?? 'download';
@@ -41,7 +52,8 @@ final class Response
         return new self($bytes, 200, [
             'Content-Type'        => $mime,
             'Content-Disposition' => sprintf(
-                'attachment; filename="%s"; filename*=UTF-8\'\'%s',
+                '%s; filename="%s"; filename*=UTF-8\'\'%s',
+                $disposition,
                 $ascii,
                 rawurlencode($filename),
             ),

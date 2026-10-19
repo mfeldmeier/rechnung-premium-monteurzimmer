@@ -50,6 +50,7 @@ $keep = ['status' => $filter['status'], 'jahr' => $filter['year'], 'q' => $filte
     <?php if ($rows === []): ?>
         <p class="muted">Keine Rechnungen gefunden.</p>
     <?php else: ?>
+        <div class="table-scroll">
         <table class="grid">
             <thead>
             <tr>
@@ -82,6 +83,7 @@ $keep = ['status' => $filter['status'], 'jahr' => $filter['year'], 'q' => $filte
             <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
 
         <nav class="pager">
             <?php if ($page > 1): ?>

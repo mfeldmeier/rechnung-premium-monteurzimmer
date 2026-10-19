@@ -28,6 +28,12 @@ $isDraft  = $invoice['status'] === 'draft';
 $isStorno = $invoice['doc_type'] === 'credit_note';
 $heading  = $isStorno ? 'Storno-Rechnung' : 'Rechnung';
 
+// Welche Preisbasis in der Positionstabelle steht. Im Netto-Modus zeigt die
+// Tabelle Nettobetraege, damit ihre Summe zu den Netto-Zeilen im Summenblock
+// passt; die Steuer kommt dann sichtbar darunter dazu.
+$grossPrices = (bool) ($invoice['prices_include_tax'] ?? true);
+$priceNote   = $grossPrices ? 'inkl. MwSt' : 'zzgl. MwSt';
+
 $footerLine1 = $join([
     $e($seller['name']),
     $e($seller['street']),
@@ -71,10 +77,16 @@ $footerLine3 = $join([
     table {
         width: 100%;
         border-collapse: collapse;
+        table-layout: fixed;
     }
 
+    /* Ohne Umbruchregel schiebt ein langer Firmenname oder eine Beschreibung
+       ohne Leerzeichen die Spalte auf und laeuft ueber den Seitenrand hinaus.
+       table-layout: fixed haelt zusaetzlich die Prozentbreiten unten ein. */
     td, th {
         vertical-align: top;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
 
     .logo {
@@ -92,7 +104,12 @@ $footerLine3 = $join([
         padding: 0;
     }
 
+    .address .left {
+        width: 58%;
+    }
+
     .address .right {
+        width: 42%;
         text-align: right;
     }
 
@@ -106,7 +123,12 @@ $footerLine3 = $join([
         font-weight: bold;
     }
 
+    .subject .left {
+        width: 58%;
+    }
+
     .subject .right {
+        width: 42%;
         text-align: right;
         font-weight: normal;
     }
@@ -133,27 +155,44 @@ $footerLine3 = $join([
         text-align: right;
     }
 
-    .items .col-desc   { width: 46%; }
-    .items .col-qty    { width: 13%; }
-    .items .col-price  { width: 23%; }
-    .items .col-sum    { width: 18%; }
+    .items .col-desc   { width: 48%; }
+    .items .col-qty    { width: 12%; }
+    .items .col-price  { width: 20%; }
+    .items .col-sum    { width: 20%; }
+
+    /* Betraege nie umbrechen - "1.234,56" auf zwei Zeilen liest niemand gern.
+       Nur die Zellen, nicht die Koepfe: die sollen umbrechen duerfen. */
+    .items td.col-qty,
+    .items td.col-price,
+    .items td.col-sum {
+        white-space: nowrap;
+    }
+
+    .items .unit-note {
+        font-size: 7.5pt;
+        font-weight: normal;
+        color: #555555;
+    }
 
     .period {
         font-size: 8pt;
         color: #555555;
     }
 
+    /* Der Summenblock darf nicht zwischen "Netto 7 %" und "Brutto Gesamt"
+       auf zwei Seiten zerfallen - das liest sich wie zwei Rechnungen. */
     .totals {
         margin-top: 4mm;
+        page-break-inside: avoid;
     }
 
     .totals td {
         padding: 0.8mm 2mm;
     }
 
-    .totals .spacer { width: 52%; }
-    .totals .label  { width: 30%; }
-    .totals .value  { width: 18%; text-align: right; }
+    .totals .spacer { width: 42%; }
+    .totals .label  { width: 38%; }
+    .totals .value  { width: 20%; text-align: right; white-space: nowrap; }
 
     .totals .grand td {
         border-top: 0.6pt solid #1a1a1a;
@@ -162,10 +201,18 @@ $footerLine3 = $join([
 
     .terms {
         margin-top: 8mm;
+        page-break-inside: avoid;
     }
 
     .closing {
         margin-top: 8mm;
+        page-break-inside: avoid;
+    }
+
+    /* Eine einzelne Positionszeile soll nicht quer ueber den Seitenwechsel
+       laufen; der Tabellenkopf wiederholt sich dafuer oben. */
+    .items tr {
+        page-break-inside: avoid;
     }
 
     .footer {
@@ -175,6 +222,11 @@ $footerLine3 = $join([
         text-align: center;
         border-top: 0.3pt solid #bbbbbb;
         padding-top: 1.5mm;
+        word-wrap: break-word;
+    }
+
+    .footer .pages {
+        margin-top: 0.8mm;
     }
 </style>
 </head>
@@ -185,6 +237,8 @@ $footerLine3 = $join([
         <div><?= $footerLine1 ?></div>
         <div><?= $footerLine2 ?></div>
         <div><?= $footerLine3 ?></div>
+        <?php /* Mehrseitige Rechnungen sollen zeigen, dass nichts fehlt. */ ?>
+        <div class="pages">Seite {PAGENO} von {nbpg}</div>
     </div>
 </htmlpagefooter>
 <sethtmlpagefooter name="pmz" value="on" page="ALL" />
@@ -199,7 +253,7 @@ $footerLine3 = $join([
 
 <table class="address">
     <tr>
-        <td>
+        <td class="left">
             <?php if ($customer['company'] !== ''): ?>
             <div><?= $e($customer['company']) ?></div>
             <?php endif; ?>
@@ -220,7 +274,7 @@ $footerLine3 = $join([
 
 <table class="subject">
     <tr>
-        <td><?= $e($invoice['subject']) ?></td>
+        <td class="left"><?= $e($invoice['subject']) ?></td>
         <td class="right">
             <?php if (!$isDraft && $invoice['number'] !== null): ?>
             Rechnungsnummer: <?= $e($invoice['number']) ?>
@@ -237,9 +291,12 @@ $footerLine3 = $join([
     <thead>
         <tr>
             <th class="col-desc">Beschreibung</th>
-            <th class="col-qty">Betten/N&auml;chte</th>
-            <th class="col-price">Preis pro Nacht u. Bett Brutto</th>
-            <th class="col-sum">Kosten</th>
+            <th class="col-qty">Betten/<wbr>N&auml;chte</th>
+            <?php /* <br> statt eines Blockelements: mPDF setzt ein display:block
+                     im <th> trotzdem inline, und dann klebt "inkl. MwSt" am Wort
+                     davor. */ ?>
+            <th class="col-price">Preis je Nacht u. Bett<br><span class="unit-note"><?= $e($priceNote) ?></span></th>
+            <th class="col-sum">Kosten<br><span class="unit-note"><?= $e($priceNote) ?></span></th>
         </tr>
     </thead>
     <tbody>
@@ -257,16 +314,23 @@ $footerLine3 = $join([
                 <?php endif; ?>
             </td>
             <?php
+            // Im Netto-Modus steht in der Tabelle der Nettobetrag der Zeile,
+            // und zwar der vom Calculator verteilte: nur der summiert sich
+            // exakt auf die Netto-Zeilen im Block darunter.
+            $lineCents = $grossPrices ? $item['line_gross_cents'] : $item['line_net_cents'];
+            $quantity  = (float) $item['quantity'];
+
             // Bei vorgegebenem Endpreis ist der Nachtpreis abgeleitet und
             // selten glatt. Deshalb mit bis zu vier Nachkommastellen, damit
             // die Multiplikation zur Zeilensumme aufgeht und niemand beim
             // Nachrechnen auf eine Differenz stoesst.
-            $unitCents = (($item['price_mode'] ?? 'unit') === 'total' && (float) $item['quantity'] > 0)
-                ? $item['line_gross_cents'] / (float) $item['quantity']
+            $derived   = !$grossPrices || ($item['price_mode'] ?? 'unit') === 'total';
+            $unitCents = ($derived && $quantity > 0)
+                ? $lineCents / $quantity
                 : (float) $item['unit_price_gross_cents'];
             ?>
             <td class="col-price"><?= $e(Format::unitPrice($unitCents)) ?></td>
-            <td class="col-sum"><?= $e(Format::money($item['line_gross_cents'])) ?></td>
+            <td class="col-sum"><?= $e(Format::money($lineCents)) ?></td>
         </tr>
     <?php endforeach; ?>
     </tbody>
@@ -288,7 +352,7 @@ $footerLine3 = $join([
     </tr>
     <tr>
         <td class="spacer"></td>
-        <td class="label">davon <?= $e(Format::percent($group['rate_bp'])) ?>&nbsp;% MwSt</td>
+        <td class="label"><?= $grossPrices ? 'davon' : 'zzgl.' ?> <?= $e(Format::percent($group['rate_bp'])) ?>&nbsp;% MwSt</td>
         <td class="value"><?= $e(Format::euro($group['tax_cents'])) ?></td>
     </tr>
         <?php endif; ?>

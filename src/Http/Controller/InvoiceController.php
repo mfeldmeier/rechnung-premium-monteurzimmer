@@ -13,6 +13,7 @@ use Pmz\Http\Request;
 use Pmz\Http\Response;
 use Pmz\Http\View;
 use Pmz\Pdf\InvoiceDocument;
+use Pmz\Pdf\PdfRenderer;
 use Pmz\Repo\ApartmentRepo;
 use Pmz\Repo\CustomerRepo;
 use Pmz\Repo\InvoiceRepo;
@@ -34,6 +35,7 @@ final class InvoiceController extends BaseController
         private readonly SettingsRepo $settings = new SettingsRepo(),
         private readonly StatsRepo $stats = new StatsRepo(),
         private readonly InvoiceDocument $document = new InvoiceDocument(),
+        private readonly PdfRenderer $renderer = new PdfRenderer(),
     ) {
     }
 
@@ -189,6 +191,43 @@ final class InvoiceController extends BaseController
         );
     }
 
+    /**
+     * Zeigt den aktuellen Stand des Editors als PDF an, ohne etwas zu speichern.
+     *
+     * Bewusst ohne ZUGFeRD-XML: das verlangt eine Rechnungsnummer (BT-1), die
+     * es erst beim Finalisieren gibt. Und bewusst ohne Kundenanlage - wer nur
+     * das Layout sehen will, soll dafuer keinen Karteileichen-Kunden erzeugen.
+     */
+    public function previewPdf(Request $r, string $id): Response
+    {
+        $this->requireUser();
+        $this->guardPost($r);
+
+        $invoiceId = $this->resolveId($id);
+        $input     = $this->inputFromRequest($r, $this->selectedCustomerId($r));
+        $customer  = $this->customerFromRequest($r);
+
+        try {
+            $invoice = $this->previewInvoice($invoiceId, $input, $customer, strict: true);
+        } catch (DomainException | InvalidArgumentException $e) {
+            Flash::error($e->getMessage());
+
+            return $this->editor($this->previewInvoice($invoiceId, $input, $customer), 422);
+        }
+
+        if ($invoice['items'] === []) {
+            Flash::error('Ohne Positionen gibt es nichts anzusehen.');
+
+            return $this->editor($invoice, 422);
+        }
+
+        return Response::inline(
+            $this->renderer->render($invoice, archival: false),
+            'Rechnungsvorschau.pdf',
+            'application/pdf',
+        );
+    }
+
     /** @param array<string,mixed> $invoice */
     private function editor(array $invoice, int $status = 200): Response
     {
@@ -257,6 +296,7 @@ final class InvoiceController extends BaseController
             'seller'             => $this->settings->seller(),
             'payment_terms_text' => $this->settings->get('payment_terms_text'),
             'closing_text'       => $this->settings->get('closing_text'),
+            'prices_include_tax' => true,
             'items'              => [],
             'tax_breakdown'      => [],
             'net_total_cents'    => 0,
@@ -277,8 +317,12 @@ final class InvoiceController extends BaseController
      * @param  array<string,mixed> $input
      * @return array<string,mixed>
      */
-    private function previewInvoice(?int $invoiceId, array $input): array
-    {
+    private function previewInvoice(
+        ?int $invoiceId,
+        array $input,
+        ?array $customer = null,
+        bool $strict = false,
+    ): array {
         $invoice = $this->blankInvoice();
 
         $invoice['id']                 = $invoiceId;
@@ -289,20 +333,41 @@ final class InvoiceController extends BaseController
         $invoice['customer_id']        = $input['customer_id'];
         $invoice['payment_terms_text'] = (string) $input['payment_terms_text'];
         $invoice['closing_text']       = (string) $input['closing_text'];
-        $invoice['customer']           = $this->customers->snapshot(
+        $invoice['prices_include_tax'] = (bool) ($input['prices_include_tax'] ?? true);
+        $invoice['customer']           = $customer ?? $this->customers->snapshot(
             $input['customer_id'] !== null ? $this->customers->find((int) $input['customer_id']) : null,
         );
 
-        // Vorschau nach einem Fehler: bei vorgegebenem Endpreis bleibt dieser
-        // stehen, sonst ergibt sich die Summe aus dem Tagespreis.
-        $invoice['items'] = array_map(static function (array $item): array {
-            $item['line_gross_cents'] = ($item['price_mode'] ?? LineItem::MODE_UNIT) === LineItem::MODE_TOTAL
-                ? (int) ($item['line_gross_cents'] ?? 0)
-                : (int) round($item['unit_price_gross_cents'] * $item['quantity']);
-            $item['line_net_cents'] = 0;
+        try {
+            // Derselbe Rechenweg wie beim Speichern - eine Vorschau, die anders
+            // rechnet als das Original, waere keine.
+            $computed = $this->service->computeFromInput($input);
+        } catch (DomainException | InvalidArgumentException $e) {
+            if ($strict) {
+                throw $e;
+            }
 
-            return $item;
-        }, $input['items']);
+            // Fehleranzeige: die Meldung steht schon als Flash ueber dem
+            // Formular, hier geht es nur noch darum, das Getippte zu erhalten.
+            $invoice['items'] = array_map(static function (array $item): array {
+                $item['line_gross_cents'] = ($item['price_mode'] ?? LineItem::MODE_UNIT) === LineItem::MODE_TOTAL
+                    ? (int) ($item['line_gross_cents'] ?? 0)
+                    : (int) round($item['unit_price_gross_cents'] * $item['quantity']);
+                $item['line_net_cents']         = 0;
+                $item['input_unit_price_cents'] = (int) $item['unit_price_gross_cents'];
+                $item['input_line_cents']       = (int) $item['line_gross_cents'];
+
+                return $item;
+            }, $input['items']);
+
+            return $invoice;
+        }
+
+        $invoice['items']             = $computed['items'];
+        $invoice['tax_breakdown']     = $computed['tax_breakdown'];
+        $invoice['net_total_cents']   = $computed['net_total_cents'];
+        $invoice['tax_total_cents']   = $computed['tax_total_cents'];
+        $invoice['gross_total_cents'] = $computed['gross_total_cents'];
 
         return $invoice;
     }
@@ -313,16 +378,12 @@ final class InvoiceController extends BaseController
      */
     private function resolveCustomer(Request $r): ?int
     {
-        $selected = trim((string) $r->post('customer_id', ''));
-        if ($selected !== '' && (int) $selected > 0) {
-            return (int) $selected;
+        $selected = $this->selectedCustomerId($r);
+        if ($selected !== null) {
+            return $selected;
         }
 
-        $fields = $r->postArray('customer');
-        $data   = [];
-        foreach (['company', 'contact_name', 'street', 'postcode', 'city', 'country_code', 'email', 'phone', 'vat_id'] as $key) {
-            $data[$key] = is_scalar($fields[$key] ?? null) ? trim((string) $fields[$key]) : '';
-        }
+        $data = $this->customerFields($r);
 
         // Ohne Firma und ohne Ansprechpartner ist das kein Kunde, sondern ein
         // leeres Formular - dann bleibt der Entwurf eben kundenlos.
@@ -331,6 +392,41 @@ final class InvoiceController extends BaseController
         }
 
         return $this->customers->create($data);
+    }
+
+    private function selectedCustomerId(Request $r): ?int
+    {
+        $selected = trim((string) $r->post('customer_id', ''));
+
+        return $selected !== '' && (int) $selected > 0 ? (int) $selected : null;
+    }
+
+    /**
+     * Die Kundendaten aus dem Formular, ohne sie anzulegen - fuer die Vorschau.
+     * Ist ein Kunde gewaehlt, gewinnt dessen Stammsatz und hier kommt null.
+     *
+     * @return array<string,string>|null
+     */
+    private function customerFromRequest(Request $r): ?array
+    {
+        if ($this->selectedCustomerId($r) !== null) {
+            return null;
+        }
+
+        return $this->customers->snapshot($this->customerFields($r));
+    }
+
+    /** @return array<string,string> */
+    private function customerFields(Request $r): array
+    {
+        $fields = $r->postArray('customer');
+        $data   = [];
+
+        foreach (['company', 'contact_name', 'street', 'postcode', 'city', 'country_code', 'email', 'phone', 'vat_id'] as $key) {
+            $data[$key] = is_scalar($fields[$key] ?? null) ? trim((string) $fields[$key]) : '';
+        }
+
+        return $data;
     }
 
     /** @return array<string,mixed> Eingabe im Format, das InvoiceService::saveDraft erwartet. */
@@ -357,6 +453,8 @@ final class InvoiceController extends BaseController
             'customer_id'        => $customerId,
             'payment_terms_text' => (string) $r->post('payment_terms_text', ''),
             'closing_text'       => (string) $r->post('closing_text', ''),
+            // Ohne Angabe bleibt es beim bisherigen Verhalten: brutto.
+            'prices_include_tax' => (string) $r->post('prices_include_tax', '1') !== '0',
             'items'              => $items,
         ];
     }

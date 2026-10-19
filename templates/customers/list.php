@@ -21,6 +21,7 @@
     <?php if ($rows === []): ?>
         <p class="muted">Keine Kunden gefunden.</p>
     <?php else: ?>
+        <div class="table-scroll">
         <table class="grid">
             <thead>
             <tr>
@@ -43,6 +44,7 @@
             <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
     <?php endif; ?>
 </section>
 

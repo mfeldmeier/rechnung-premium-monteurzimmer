@@ -10,9 +10,14 @@ use InvalidArgumentException;
 /**
  * Eine Rechnungszeile, wie sie im Editor eingegeben wird.
  *
- * Preise werden brutto erfasst - so steht es in der Vorlage ("Preis pro Nacht
- * u. Bett Brutto") und so werden die Naechte verhandelt. Netto und Steuer
- * leitet der Calculator daraus ab, nicht umgekehrt.
+ * Preise werden im Regelfall brutto erfasst - so werden die Naechte verhandelt,
+ * und Netto und Steuer leitet der Calculator daraus ab, nicht umgekehrt.
+ *
+ * Mit Firmenkunden wird dagegen oft netto verhandelt. Steht $priceIncludesTax
+ * auf false, sind $unitPriceGrossCents und $lineTotalGrossCents Nettowerte;
+ * grossCents() rechnet dann einmal hoch, und ab da laeuft alles Weitere
+ * unveraendert ueber den Bruttobetrag. Der Umschalter gilt fuer die ganze
+ * Rechnung, nicht je Zeile.
  */
 final readonly class LineItem
 {
@@ -47,6 +52,7 @@ final readonly class LineItem
         public ?string $dateTo = null,
         public string $priceMode = self::MODE_UNIT,
         public ?int $lineTotalGrossCents = null,
+        public bool $priceIncludesTax = true,
     ) {
         if ($quantity < 0) {
             throw new InvalidArgumentException('Menge darf nicht negativ sein.');
@@ -120,9 +126,19 @@ final readonly class LineItem
 
     public function grossCents(): int
     {
-        return $this->priceMode === self::MODE_TOTAL
+        $entered = $this->priceMode === self::MODE_TOTAL
             ? (int) $this->lineTotalGrossCents
             : (int) round($this->unitPriceGrossCents * $this->quantity);
+
+        if ($this->priceIncludesTax) {
+            return $entered;
+        }
+
+        // Netto-Eingabe: einmal je Zeile hochrechnen. Der Calculator rundet
+        // danach wie gewohnt je Steuergruppe - so bleibt es bei einem einzigen
+        // Rundungsschritt pro Zeile, und 100,00 EUR netto bei 19 % ergeben
+        // exakt die erwarteten 119,00 EUR.
+        return (int) round($entered * (10000 + $this->effectiveRateBp()) / 10000);
     }
 
     /**
@@ -135,11 +151,15 @@ final readonly class LineItem
      */
     public function unitPriceCents(): float
     {
-        if ($this->priceMode !== self::MODE_TOTAL) {
-            return (float) $this->unitPriceGrossCents;
+        if ($this->priceMode === self::MODE_TOTAL) {
+            return $this->quantity > 0 ? $this->grossCents() / $this->quantity : 0.0;
         }
 
-        return $this->quantity > 0 ? $this->grossCents() / $this->quantity : 0.0;
+        // Der Rueckgabewert ist immer brutto - daran haengen die gespeicherte
+        // Spalte unit_price_gross_cents und ZUGFeRD BT-148.
+        return $this->priceIncludesTax
+            ? (float) $this->unitPriceGrossCents
+            : $this->unitPriceGrossCents * (10000 + $this->effectiveRateBp()) / 10000;
     }
 
     /** Der Satz, der fuer die Steuerberechnung zaehlt. */

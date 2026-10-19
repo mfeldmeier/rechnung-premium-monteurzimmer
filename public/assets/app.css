@@ -1,5 +1,5 @@
-/* Premium Monteurzimmer – Rechnungssoftware. Auf den Laptop ausgelegt,
-   bewusst keine Mobile-Breakpoints. */
+/* Premium Monteurzimmer – Rechnungssoftware. Zuerst fuer den Laptop gebaut,
+   die Anpassungen fuer kleine Schirme stehen gesammelt am Dateiende. */
 
 :root {
     --brand: #0D4EA2;
@@ -17,6 +17,14 @@
 
 * {
     box-sizing: border-box;
+}
+
+/* Das hidden-Attribut setzt nur die Browservorgabe display:none - und die
+   verliert gegen jede eigene display-Regel. Ohne diese Zeile zeigt der Editor
+   die Begruendung der Steuerfreiheit dauerhaft an, weil label weiter unten
+   auf display:block steht. */
+[hidden] {
+    display: none !important;
 }
 
 body {
@@ -111,7 +119,9 @@ code {
 /* ------------------------------------------------------------------ Layout */
 
 .wrap {
-    max-width: 1280px;
+    /* Die Positionstabelle des Editors braucht rund 1.250 px. Schmaler, und
+       sie scrollt auf jedem Laptop in ihrem Kasten. */
+    max-width: 1360px;
     margin: 0 auto;
     padding: 24px;
 }
@@ -158,6 +168,8 @@ code {
 .formbar {
     position: sticky;
     bottom: 0;
+    display: flex;
+    gap: 8px;
     background: var(--bg);
     padding: 12px 0 20px;
 }
@@ -402,6 +414,12 @@ textarea {
 
 /* -------------------------------------------------------------- Tabellen */
 
+/* Breite Tabellen scrollen in sich selbst, statt aus der Karte zu laufen. */
+.table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 .grid {
     width: 100%;
     border-collapse: collapse;
@@ -514,6 +532,27 @@ textarea {
 
 /* ------------------------------------------------------ Positionen im Editor */
 
+/* Kein Flex-Container: ein <legend> ist in einer Flexbox kein Flex-Item und
+   wandert je nach Browser aus dem Rahmen. */
+.pricebasis {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 14px 12px;
+    margin: 0 0 16px;
+}
+
+.pricebasis legend {
+    padding: 0 6px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.pricebasis .check {
+    display: inline-flex;
+    margin: 0 20px 0 0;
+    color: var(--ink);
+}
+
 .items {
     table-layout: auto;
 }
@@ -529,17 +568,29 @@ textarea {
 }
 
 .items .tiny {
-    width: 70px;
+    width: 62px;
     text-align: right;
 }
 
 .items .price {
-    width: 100px;
+    width: 92px;
     text-align: right;
 }
 
 .items .col-description {
-    min-width: 220px;
+    min-width: 190px;
+}
+
+/* Datumsfelder nehmen sich sonst reichlich Platz und schieben die Tabelle
+   ueber die Kartenbreite hinaus. */
+.items .col-from input,
+.items .col-to input {
+    width: 124px;
+}
+
+/* Schmaler abgeschnitten stand dort "19 9" statt "19 % (Regelsatz)". */
+.items .col-tax {
+    min-width: 130px;
 }
 
 .items .exemption {
@@ -646,4 +697,220 @@ textarea {
 
 .optional-field[open] > summary {
     margin-bottom: 8px;
+}
+
+/* ------------------------------------------------------- Kleinere Schirme */
+
+@media (max-width: 1100px) {
+    .tiles {
+        /* Sechs feste Spalten quetschen die Zahlen auf dem Tablet zusammen. */
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .wrap {
+        padding: 16px;
+    }
+
+    .topbar {
+        height: auto;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        padding: 8px 16px;
+    }
+
+    .mainnav {
+        order: 3;
+        flex: 1 0 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    .logout {
+        margin-left: auto;
+    }
+
+    .cols {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .pagehead,
+    .actions,
+    .filterbar,
+    .row {
+        flex-wrap: wrap;
+    }
+
+    .filterbar .grow,
+    .row .grow {
+        flex: 1 1 200px;
+    }
+}
+
+@media (max-width: 760px) {
+    h1 {
+        font-size: 20px;
+    }
+
+    .card {
+        padding: 14px;
+    }
+
+    .tiles {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* Unter 16px zoomt iOS beim Hineintippen ins Feld. */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="date"],
+    input[type="number"],
+    select,
+    textarea {
+        font-size: 16px;
+        padding: 9px 10px;
+    }
+
+    .btn {
+        padding: 10px 14px;
+    }
+
+    /* Von-bis-Paare duerfen sich eine Zeile teilen, statt je eine zu belegen.
+       min-width: 0 ist noetig, sonst halten die Eingabefelder ihre natuerliche
+       Breite und jedes Paar bricht doch wieder um. */
+    .row > label,
+    .row > label input {
+        flex: 1 1 140px;
+        min-width: 0;
+    }
+
+    .row .narrow {
+        width: auto;
+    }
+
+    /* Die Leiste klebt unten ueber dem Inhalt. Auf dem Telefon liegt darunter
+       meist eine weisse Karte - ohne eigenen Rand sieht das nach Fehler aus. */
+    .formbar {
+        flex-wrap: wrap;
+        margin: 0 -14px;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+        border-top: 1px solid var(--line);
+        background: #fff;
+        box-shadow: 0 -2px 8px rgba(27, 31, 36, 0.08);
+    }
+
+    .formbar .btn {
+        flex: 1 1 140px;
+        text-align: center;
+    }
+
+    /* Zwoelf Spalten passen auf kein Telefon. Jede Position wird deshalb zur
+       eigenen kleinen Karte, die Spaltenkoepfe wandern als Label vor das Feld. */
+    .items thead {
+        display: none;
+    }
+
+    .items,
+    .items tbody,
+    .items tr,
+    .items td {
+        display: block;
+        width: auto;
+    }
+
+    .item-row {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px 12px 12px;
+        margin-bottom: 12px;
+        position: relative;
+    }
+
+    .items td {
+        border-bottom: 0;
+        padding: 4px 0;
+    }
+
+    .items td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 2px;
+        font-size: 12px;
+        color: var(--muted);
+    }
+
+    .items .tiny,
+    .items .price {
+        width: 100%;
+    }
+
+    .items td.num {
+        text-align: left;
+    }
+
+    /* Gestapelt braucht nichts mehr Platz zu halten: leere Felder sind weg,
+       statt unsichtbar Luft zu belegen. */
+    .item-row .col-apartment,
+    .item-row .col-from,
+    .item-row .col-to,
+    .item-row .col-beds,
+    .item-row .col-nights {
+        display: none;
+    }
+
+    .item-row.is-accommodation .col-apartment,
+    .item-row.is-accommodation .col-from,
+    .item-row.is-accommodation .col-to,
+    .item-row.is-accommodation .col-beds,
+    .item-row.is-accommodation .col-nights {
+        display: block;
+    }
+
+    .item-row .col-apartment select,
+    .item-row .col-from input,
+    .item-row .col-to input,
+    .item-row .col-beds input,
+    .item-row [data-output="nights"] {
+        visibility: visible;
+    }
+
+    /* Sortieren per Ziehen ist auf dem Telefon nichts; die Pfeile reichen. */
+    .drag-col {
+        display: none;
+    }
+
+    .row-actions {
+        display: flex;
+        gap: 6px;
+        justify-content: flex-end;
+        padding-top: 8px;
+    }
+
+    .row-actions .btn {
+        flex: 0 0 auto;
+        padding: 6px 12px;
+    }
+
+    .pager {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 480px) {
+    .tiles {
+        grid-template-columns: 1fr;
+    }
+
+    .kv {
+        grid-template-columns: 1fr;
+        gap: 0 0;
+    }
+
+    .kv dt {
+        margin-top: 8px;
+    }
 }

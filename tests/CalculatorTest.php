@@ -217,6 +217,111 @@ final class CalculatorTest extends TestCase
     }
 
     /** @return LineItem[] */
+    /**
+     * Netto-Eingabe: aus 100,00 EUR bei 19 % werden exakt 119,00 EUR brutto,
+     * und der Weg zurueck landet wieder auf 100,00 EUR netto.
+     */
+    public function testNettoEingabeWirdHochgerechnet(): void
+    {
+        $item = new LineItem(
+            kind: LineItem::KIND_CLEANING,
+            description: 'Endreinigung',
+            quantity: 1.0,
+            unitPriceGrossCents: 10000,
+            taxRateBp: 1900,
+            priceIncludesTax: false,
+        );
+
+        self::assertSame(11900, $item->grossCents());
+        self::assertSame(11900.0, $item->unitPriceCents());
+
+        $totals = Calculator::compute([$item]);
+
+        self::assertSame(10000, $totals->netTotalCents);
+        self::assertSame(1900, $totals->taxTotalCents);
+        self::assertSame(11900, $totals->grossTotalCents);
+    }
+
+    /**
+     * Dieselbe Rechnung einmal netto erfasst: die Zeilensummen sind die
+     * Nettobetraege, die Steuer kommt obendrauf. Der Endpreis-Modus muss dabei
+     * genauso hochgerechnet werden wie der Nachtpreis.
+     */
+    public function testNettoRechnungMitGemischtenSaetzen(): void
+    {
+        $totals = Calculator::compute([
+            new LineItem(
+                kind: LineItem::KIND_ACCOMMODATION,
+                description: 'Wohnung Kiwi',
+                quantity: 44.0,
+                unitPriceGrossCents: 2800,
+                taxRateBp: 700,
+                beds: 2,
+                nights: 22,
+                priceIncludesTax: false,
+            ),
+            new LineItem(
+                kind: LineItem::KIND_ACCOMMODATION,
+                description: 'Wohnung Ananas',
+                quantity: 60.0,
+                unitPriceGrossCents: 0,
+                taxRateBp: 700,
+                beds: 4,
+                nights: 15,
+                priceMode: LineItem::MODE_TOTAL,
+                lineTotalGrossCents: 198750,
+                priceIncludesTax: false,
+            ),
+            new LineItem(
+                kind: LineItem::KIND_CLEANING,
+                description: 'Endreinigung',
+                quantity: 2.0,
+                unitPriceGrossCents: 6000,
+                taxRateBp: 1900,
+                priceIncludesTax: false,
+            ),
+            new LineItem(
+                kind: LineItem::KIND_DEPOSIT,
+                description: 'Kaution',
+                quantity: 1.0,
+                unitPriceGrossCents: 100000,
+                taxRateBp: 0,
+                taxCategory: TaxCategory::EXEMPT,
+                taxExemptionReason: 'Durchlaufender Posten',
+                priceIncludesTax: false,
+            ),
+        ]);
+
+        [$sieben, $neunzehn, $befreit] = $totals->groups;
+
+        // 1.232,00 + 1.987,50 netto, darauf 7 %.
+        self::assertSame(321950, $sieben->netCents);
+        self::assertSame(22537, $sieben->taxCents);
+
+        self::assertSame(12000, $neunzehn->netCents);
+        self::assertSame(2280, $neunzehn->taxCents);
+
+        // Steuerfreies bleibt unberuehrt: mit 0 % aendert das Hochrechnen nichts.
+        self::assertSame(100000, $befreit->netCents);
+        self::assertSame(0, $befreit->taxCents);
+
+        self::assertSame(458767, $totals->grossTotalCents);
+        self::assertSame('4.587,67 €', Format::euro($totals->grossTotalCents));
+    }
+
+    /**
+     * Der Umschalter darf die Bruttorechnung nicht anfassen: ohne Angabe
+     * bleibt es beim bisherigen Verhalten.
+     */
+    public function testBruttoBleibtDerStandard(): void
+    {
+        $brutto = new LineItem(LineItem::KIND_CLEANING, 'Endreinigung', 1.0, 11900, 1900);
+
+        self::assertTrue($brutto->priceIncludesTax);
+        self::assertSame(11900, $brutto->grossCents());
+        self::assertSame(10000, Calculator::compute([$brutto])->netTotalCents);
+    }
+
     private function vorlagePositionen(): array
     {
         return [

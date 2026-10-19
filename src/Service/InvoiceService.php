@@ -43,9 +43,8 @@ final class InvoiceService
             }
         }
 
-        $itemsInput = array_values($input['items'] ?? []);
-        $lineItems  = array_map($this->toLineItem(...), $itemsInput);
-        $totals     = Calculator::compute($lineItems);
+        $pricesIncludeTax = (bool) ($input['prices_include_tax'] ?? true);
+        $computed         = $this->computeFromInput($input);
 
         $row = [
             'invoice_date'       => $input['invoice_date'] ?? date('Y-m-d'),
@@ -57,13 +56,14 @@ final class InvoiceService
                 : null,
             'payment_terms_text' => (string) ($input['payment_terms_text'] ?? $this->settings->get('payment_terms_text')),
             'closing_text'       => (string) ($input['closing_text'] ?? $this->settings->get('closing_text')),
-            'net_total_cents'    => $totals->netTotalCents,
-            'tax_total_cents'    => $totals->taxTotalCents,
-            'gross_total_cents'  => $totals->grossTotalCents,
-            'tax_breakdown'      => $this->encode($totals->breakdownToArray()),
+            'prices_include_tax' => $pricesIncludeTax ? 1 : 0,
+            'net_total_cents'    => $computed['net_total_cents'],
+            'tax_total_cents'    => $computed['tax_total_cents'],
+            'gross_total_cents'  => $computed['gross_total_cents'],
+            'tax_breakdown'      => $this->encode($computed['tax_breakdown']),
         ];
 
-        return Db::transaction(function () use ($id, $row, $itemsInput, $lineItems, $totals, $userId): int {
+        return Db::transaction(function () use ($id, $row, $computed, $userId): int {
             if ($id === null) {
                 $row['status']            = 'draft';
                 $row['doc_type']          = 'invoice';
@@ -75,10 +75,38 @@ final class InvoiceService
                 $this->invoices->update($id, $row);
             }
 
-            $this->invoices->replaceItems($id, $this->persistableItems($itemsInput, $lineItems, $totals));
+            $this->invoices->replaceItems($id, $computed['items']);
 
             return $id;
         });
+    }
+
+    /**
+     * Rechnet die Eingabe durch, ohne etwas zu speichern. Die PDF-Vorschau im
+     * Editor laeuft darueber - sie soll denselben Weg nehmen wie das Speichern,
+     * sonst zeigt sie am Ende etwas anderes, als hinterher auf der Rechnung steht.
+     *
+     * @param  array<string,mixed> $input
+     * @return array{items:array<int,array<string,mixed>>,tax_breakdown:array,net_total_cents:int,tax_total_cents:int,gross_total_cents:int}
+     */
+    public function computeFromInput(array $input): array
+    {
+        $pricesIncludeTax = (bool) ($input['prices_include_tax'] ?? true);
+        $itemsInput       = array_values($input['items'] ?? []);
+        $lineItems        = array_map(
+            fn (array $raw): LineItem => $this->toLineItem($raw, $pricesIncludeTax),
+            $itemsInput,
+        );
+
+        $totals = Calculator::compute($lineItems);
+
+        return [
+            'items'             => $this->persistableItems($itemsInput, $lineItems, $totals),
+            'tax_breakdown'     => $totals->breakdownToArray(),
+            'net_total_cents'   => $totals->netTotalCents,
+            'tax_total_cents'   => $totals->taxTotalCents,
+            'gross_total_cents' => $totals->grossTotalCents,
+        ];
     }
 
     /** @return array<string,mixed> das fertige Rechnungs-Array laut Datenvertrag */
@@ -159,6 +187,7 @@ final class InvoiceService
                 'seller_snapshot'    => $original['seller_snapshot'],
                 'payment_terms_text' => $original['payment_terms_text'],
                 'closing_text'       => $original['closing_text'],
+                'prices_include_tax' => $original['prices_include_tax'] ?? 1,
                 'net_total_cents'    => $original['net_total_cents'],
                 'tax_total_cents'    => $original['tax_total_cents'],
                 'gross_total_cents'  => $original['gross_total_cents'],
@@ -190,7 +219,7 @@ final class InvoiceService
         );
     }
 
-    private function toLineItem(array $raw): LineItem
+    private function toLineItem(array $raw, bool $pricesIncludeTax = true): LineItem
     {
         $kind     = (string) ($raw['kind'] ?? LineItem::KIND_CUSTOM);
         $category = (string) ($raw['tax_category'] ?? TaxCategory::STANDARD);
@@ -233,6 +262,7 @@ final class InvoiceService
             lineTotalGrossCents: $priceMode === LineItem::MODE_TOTAL
                 ? (int) ($raw['line_gross_cents'] ?? 0)
                 : null,
+            priceIncludesTax: $pricesIncludeTax,
         );
     }
 
@@ -261,6 +291,14 @@ final class InvoiceService
                 // den genauen Wert jederzeit daraus zurueck.
                 'unit_price_gross_cents' => (int) round($item->unitPriceCents()),
                 'price_mode'             => $item->priceMode,
+                // Die Eingabe im Original: im Netto-Modus steht in den beiden
+                // Spalten darueber der hochgerechnete Bruttowert, und daraus
+                // zurueckgerechnet wandert der Nettopreis beim naechsten
+                // Speichern um einen Cent.
+                'input_unit_price_cents' => $item->unitPriceGrossCents,
+                'input_line_cents'       => $item->priceMode === LineItem::MODE_TOTAL
+                    ? (int) $item->lineTotalGrossCents
+                    : (int) round($item->unitPriceGrossCents * $item->quantity),
                 'tax_rate_bp'            => $item->taxRateBp,
                 'tax_category'           => $item->taxCategory,
                 'tax_exemption_reason'   => $item->taxExemptionReason,

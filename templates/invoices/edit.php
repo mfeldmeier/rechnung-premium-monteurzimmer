@@ -9,9 +9,12 @@
  * @var array<int,array<string,mixed>> $presets
  * @var array<string,string>           $taxOptions
  */
-$isNew    = $invoice['id'] === null;
-$action   = '/rechnungen/' . ($isNew ? 'neu' : $invoice['id']) . '/speichern';
-$customer = $invoice['customer'];
+$isNew       = $invoice['id'] === null;
+$slug        = $isNew ? 'neu' : (string) $invoice['id'];
+$action      = '/rechnungen/' . $slug . '/speichern';
+$previewPath = '/rechnungen/' . $slug . '/vorschau';
+$customer    = $invoice['customer'];
+$grossPrices = (bool) ($invoice['prices_include_tax'] ?? true);
 
 $seed = [
     'items'      => array_map(static fn (array $item): array => [
@@ -23,9 +26,11 @@ $seed = [
         'date_to'              => $item['date_to'],
         'beds'                 => $item['beds'],
         'quantity'             => $item['quantity'],
-        'price_cents'          => $item['unit_price_gross_cents'],
+        // Zurueck in den Editor kommt, was dort eingetippt wurde - im
+        // Netto-Modus also netto. Die Bruttospalten daneben sind abgeleitet.
+        'price_cents'          => $item['input_unit_price_cents'] ?? $item['unit_price_gross_cents'],
         'price_mode'           => $item['price_mode'] ?? 'unit',
-        'line_gross_cents'     => $item['line_gross_cents'],
+        'line_gross_cents'     => $item['input_line_cents'] ?? $item['line_gross_cents'],
         'tax'                  => $item['tax_category'] . '|' . $item['tax_rate_bp'],
         'tax_exemption_reason' => $item['tax_exemption_reason'] ?? '',
     ], $invoice['items']),
@@ -117,6 +122,21 @@ $seed = [
             <h2>Positionen</h2>
         </div>
 
+        <?php /* Gilt fuer alle Zeilen: der Steuersatz steht ohnehin an der
+                 Position, und eine eigene Spalte je Zeile macht die Tabelle
+                 nur enger. Die Aufschluesselung steht unten unter "Summen". */ ?>
+        <fieldset class="pricebasis">
+            <legend>Die eingegebenen Preise sind</legend>
+            <label class="check">
+                <input type="radio" name="prices_include_tax" value="1" id="preise-brutto"<?= $grossPrices ? ' checked' : '' ?>>
+                inkl. MwSt (brutto)
+            </label>
+            <label class="check">
+                <input type="radio" name="prices_include_tax" value="0"<?= $grossPrices ? '' : ' checked' ?>>
+                zzgl. MwSt (netto)
+            </label>
+        </fieldset>
+
         <p class="muted small">Baustein anklicken, um eine Zeile einzufügen.</p>
         <div class="preset-buttons">
             <?php foreach ($presets as $preset): ?>
@@ -126,25 +146,27 @@ $seed = [
             <?php endforeach; ?>
         </div>
 
-        <table class="grid items">
-            <thead>
-            <tr>
-                <th class="drag-col"></th>
-                <th>Beschreibung</th>
-                <th>Wohnung</th>
-                <th>Anreise</th>
-                <th>Abreise</th>
-                <th class="num">Betten</th>
-                <th class="num">Nächte</th>
-                <th class="num">Menge</th>
-                <th class="num">Preis brutto</th>
-                <th>Steuer</th>
-                <th class="num">Summe</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody id="positions-body"></tbody>
-        </table>
+        <div class="table-scroll">
+            <table class="grid items">
+                <thead>
+                <tr>
+                    <th class="drag-col"></th>
+                    <th>Beschreibung</th>
+                    <th>Wohnung</th>
+                    <th>Anreise</th>
+                    <th>Abreise</th>
+                    <th class="num">Betten</th>
+                    <th class="num">Nächte</th>
+                    <th class="num">Menge</th>
+                    <th class="num" data-price-head>Preis <?= $grossPrices ? 'brutto' : 'netto' ?></th>
+                    <th>Steuer</th>
+                    <th class="num" data-sum-head>Summe <?= $grossPrices ? 'brutto' : 'netto' ?></th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="positions-body"></tbody>
+            </table>
+        </div>
 
         <p class="muted small" id="keine-positionen">Noch keine Positionen.</p>
     </section>
@@ -179,6 +201,11 @@ $seed = [
 
     <div class="formbar">
         <button type="submit" class="btn btn-primary">Entwurf speichern</button>
+        <?php /* formnovalidate, weil die Vorschau auch von einem halb
+                 ausgefuellten Formular aus nuetzlich ist. Gespeichert wird
+                 dabei nichts - auch kein Kunde. */ ?>
+        <button type="submit" class="btn" formaction="<?= e($previewPath) ?>"
+                formtarget="_blank" formnovalidate>PDF-Vorschau</button>
     </div>
 </form>
 
@@ -200,7 +227,7 @@ $seed = [
 <template id="positions-vorlage">
     <tr class="item-row">
         <td class="drag-col"><span class="drag-handle" draggable="true" title="Zum Sortieren ziehen">⠿</span></td>
-        <td class="col-description">
+        <td class="col-description" data-label="Beschreibung">
             <input type="text" data-field="description" maxlength="255" required>
             <input type="hidden" data-field="kind">
             <input type="hidden" data-field="apartment_name">
@@ -210,7 +237,7 @@ $seed = [
                 <input type="text" data-field="tax_exemption_reason" maxlength="255">
             </label>
         </td>
-        <td class="col-apartment">
+        <td class="col-apartment" data-label="Wohnung">
             <select data-field="apartment_id">
                 <option value="">–</option>
                 <?php foreach ($apartments as $apartment): ?>
@@ -220,19 +247,19 @@ $seed = [
                 <?php endforeach; ?>
             </select>
         </td>
-        <td class="col-from"><input type="date" data-field="date_from"></td>
-        <td class="col-to"><input type="date" data-field="date_to"></td>
-        <td class="col-beds num"><input type="number" data-field="beds" min="1" step="1" class="tiny"></td>
-        <td class="col-nights num"><output data-output="nights">0</output></td>
-        <td class="col-quantity num">
+        <td class="col-from" data-label="Anreise"><input type="date" data-field="date_from"></td>
+        <td class="col-to" data-label="Abreise"><input type="date" data-field="date_to"></td>
+        <td class="col-beds num" data-label="Betten"><input type="number" data-field="beds" min="1" step="1" class="tiny"></td>
+        <td class="col-nights num" data-label="Nächte"><output data-output="nights">0</output></td>
+        <td class="col-quantity num" data-label="Menge">
             <input type="text" data-field="quantity" class="tiny" inputmode="decimal">
             <output data-output="quantity">0</output>
         </td>
-        <td class="num">
+        <td class="num col-price" data-label="Preis">
             <input type="text" data-field="unit_price_gross" class="price" inputmode="decimal"
                    placeholder="0,00" required>
         </td>
-        <td>
+        <td class="col-tax" data-label="Steuer">
             <select data-field="tax">
                 <?php foreach ($taxOptions as $value => $label): ?>
                     <option value="<?= e($value) ?>"><?= e($label) ?></option>
@@ -242,9 +269,9 @@ $seed = [
         <?php /* Beide Richtungen: Tagespreis eingeben und die Summe ergibt sich,
                  oder die Summe eingeben und der Tagespreis ergibt sich. Welches
                  Feld zuletzt bearbeitet wurde, steht in price_mode. */ ?>
-        <td class="num">
+        <td class="num col-sum" data-label="Summe">
             <input type="text" data-field="line_gross" class="price" inputmode="decimal"
-                   placeholder="0,00" aria-label="Kosten brutto">
+                   placeholder="0,00" aria-label="Zeilensumme">
             <input type="hidden" data-field="price_mode" value="unit">
         </td>
         <td class="row-actions">
