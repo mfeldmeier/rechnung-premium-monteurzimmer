@@ -125,8 +125,9 @@ final class InvoiceRepo
             "INSERT INTO {$table}
                 (`invoice_id`, `sort_order`, `kind`, `description`, `apartment_id`, `apartment_name`,
                  `date_from`, `date_to`, `beds`, `nights`, `quantity`, `unit_price_gross_cents`,
-                 `tax_rate_bp`, `tax_category`, `tax_exemption_reason`, `line_gross_cents`, `line_net_cents`)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 `price_mode`, `tax_rate_bp`, `tax_category`, `tax_exemption_reason`,
+                 `line_gross_cents`, `line_net_cents`)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
 
         foreach (array_values($items) as $position => $item) {
@@ -143,6 +144,7 @@ final class InvoiceRepo
                 $item['nights'] ?? null,
                 $item['quantity'],
                 $item['unit_price_gross_cents'],
+                $item['price_mode'] ?? 'unit',
                 $item['tax_rate_bp'],
                 $item['tax_category'],
                 $item['tax_exemption_reason'] ?? null,
@@ -225,6 +227,7 @@ final class InvoiceRepo
             'nights'                 => $row['nights'] !== null ? (int) $row['nights'] : null,
             'quantity'               => (float) $row['quantity'],
             'unit_price_gross_cents' => (int) $row['unit_price_gross_cents'],
+            'price_mode'             => (string) ($row['price_mode'] ?? 'unit'),
             'tax_rate_bp'            => (int) $row['tax_rate_bp'],
             'tax_category'           => (string) $row['tax_category'],
             'tax_exemption_reason'   => $row['tax_exemption_reason'] !== null ? (string) $row['tax_exemption_reason'] : null,

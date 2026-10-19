@@ -631,3 +631,19 @@ textarea {
 .customer-fields label {
     margin-bottom: 8px;
 }
+
+/* Selten gebrauchte Felder, eingeklappt bis jemand sie braucht. */
+.optional-field {
+    margin-bottom: 8px;
+}
+
+.optional-field > summary {
+    cursor: pointer;
+    color: var(--brand);
+    font-size: 0.9rem;
+    user-select: none;
+}
+
+.optional-field[open] > summary {
+    margin-bottom: 8px;
+}

@@ -21,6 +21,17 @@ final readonly class LineItem
     public const KIND_DEPOSIT       = 'deposit';
     public const KIND_CUSTOM        = 'custom';
 
+    /** Der Einzelpreis ist massgeblich, die Zeilensumme wird daraus berechnet. */
+    public const MODE_UNIT = 'unit';
+
+    /**
+     * Die Zeilensumme ist massgeblich, der Einzelpreis wird daraus abgeleitet.
+     * Fuer von aussen vorgegebene Endpreise - etwa die von Secra inklusive
+     * Gebuehren -, die sich nicht glatt auf einen Nachtpreis zurueckrechnen
+     * lassen.
+     */
+    public const MODE_TOTAL = 'total';
+
     public function __construct(
         public string $kind,
         public string $description,
@@ -34,6 +45,8 @@ final readonly class LineItem
         public ?int $nights = null,
         public ?string $dateFrom = null,
         public ?string $dateTo = null,
+        public string $priceMode = self::MODE_UNIT,
+        public ?int $lineTotalGrossCents = null,
     ) {
         if ($quantity < 0) {
             throw new InvalidArgumentException('Menge darf nicht negativ sein.');
@@ -52,6 +65,17 @@ final readonly class LineItem
         if ($taxCategory === TaxCategory::EXEMPT && ($taxExemptionReason === null || $taxExemptionReason === '')) {
             // EN16931 BR-E-10: zu Kategorie E gehoert zwingend eine Begruendung.
             throw new InvalidArgumentException('Steuerbefreiung ohne Begruendung ist nicht zulaessig.');
+        }
+        if (!in_array($priceMode, [self::MODE_UNIT, self::MODE_TOTAL], true)) {
+            throw new InvalidArgumentException("Unbekannter Preismodus: {$priceMode}");
+        }
+        if ($priceMode === self::MODE_TOTAL) {
+            if ($lineTotalGrossCents === null) {
+                throw new InvalidArgumentException('Preismodus "total" braucht eine Zeilensumme.');
+            }
+            if ($lineTotalGrossCents < 0) {
+                throw new InvalidArgumentException('Zeilensumme darf nicht negativ sein.');
+            }
         }
     }
 
@@ -96,7 +120,26 @@ final readonly class LineItem
 
     public function grossCents(): int
     {
-        return (int) round($this->unitPriceGrossCents * $this->quantity);
+        return $this->priceMode === self::MODE_TOTAL
+            ? (int) $this->lineTotalGrossCents
+            : (int) round($this->unitPriceGrossCents * $this->quantity);
+    }
+
+    /**
+     * Der Einzelpreis in Cent, bei Bedarf mit Nachkommaanteil.
+     *
+     * Bei Modus "total" ergibt sich aus 1.250,00 EUR auf 44 Einheiten ein Wert
+     * von 2840,909... Cent. Gerundet auf zwei Nachkommastellen multipliziert
+     * sich das nicht mehr zur Zeilensumme zurueck, deshalb wird hier bewusst
+     * nicht gerundet - die Darstellung uebernimmt Format::unitPrice().
+     */
+    public function unitPriceCents(): float
+    {
+        if ($this->priceMode !== self::MODE_TOTAL) {
+            return (float) $this->unitPriceGrossCents;
+        }
+
+        return $this->quantity > 0 ? $this->grossCents() / $this->quantity : 0.0;
     }
 
     /** Der Satz, der fuer die Steuerberechnung zaehlt. */

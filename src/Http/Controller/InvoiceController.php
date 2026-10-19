@@ -293,9 +293,13 @@ final class InvoiceController extends BaseController
             $input['customer_id'] !== null ? $this->customers->find((int) $input['customer_id']) : null,
         );
 
+        // Vorschau nach einem Fehler: bei vorgegebenem Endpreis bleibt dieser
+        // stehen, sonst ergibt sich die Summe aus dem Tagespreis.
         $invoice['items'] = array_map(static function (array $item): array {
-            $item['line_gross_cents'] = (int) round($item['unit_price_gross_cents'] * $item['quantity']);
-            $item['line_net_cents']   = 0;
+            $item['line_gross_cents'] = ($item['price_mode'] ?? LineItem::MODE_UNIT) === LineItem::MODE_TOTAL
+                ? (int) ($item['line_gross_cents'] ?? 0)
+                : (int) round($item['unit_price_gross_cents'] * $item['quantity']);
+            $item['line_net_cents'] = 0;
 
             return $item;
         }, $input['items']);
@@ -365,12 +369,19 @@ final class InvoiceController extends BaseController
     {
         $description = trim((string) ($raw['description'] ?? ''));
         $priceCents  = self::parsePriceCents((string) ($raw['unit_price_gross'] ?? ''));
+        $totalCents  = self::parsePriceCents((string) ($raw['line_gross'] ?? ''));
         $dateFrom    = $this->nullIfBlank($raw['date_from'] ?? null);
         $dateTo      = $this->nullIfBlank($raw['date_to'] ?? null);
 
-        if ($description === '' && $priceCents === 0 && $dateFrom === null && $dateTo === null) {
+        if ($description === '' && $priceCents === 0 && $totalCents === 0 && $dateFrom === null && $dateTo === null) {
             return null;
         }
+
+        // Massgeblich ist das Feld, in dem zuletzt getippt wurde - die
+        // Oberflaeche meldet das in price_mode.
+        $priceMode = ($raw['price_mode'] ?? LineItem::MODE_UNIT) === LineItem::MODE_TOTAL
+            ? LineItem::MODE_TOTAL
+            : LineItem::MODE_UNIT;
 
         [$category, $rateBp] = $this->splitTax((string) ($raw['tax'] ?? 'S|1900'));
 
@@ -397,6 +408,8 @@ final class InvoiceController extends BaseController
             'nights'                 => $this->intOrNull($raw['nights'] ?? null),
             'quantity'               => $quantity > 0 ? $quantity : 1.0,
             'unit_price_gross_cents' => $priceCents,
+            'price_mode'             => $priceMode,
+            'line_gross_cents'       => $totalCents,
             'tax_rate_bp'            => $rateBp,
             'tax_category'           => $category,
             'tax_exemption_reason'   => $this->nullIfBlank($raw['tax_exemption_reason'] ?? null),

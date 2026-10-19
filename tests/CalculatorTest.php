@@ -46,6 +46,84 @@ final class CalculatorTest extends TestCase
         self::assertSame('1.392,00 €', Format::euro($totals->grossTotalCents));
     }
 
+    /**
+     * Secra gibt einen Endpreis inklusive Gebuehren vor. Der muss auf den Cent
+     * stehen bleiben, auch wenn er sich nicht glatt auf einen Nachtpreis
+     * zurueckrechnen laesst.
+     */
+    public function testEndpreisBleibtExaktErhalten(): void
+    {
+        $item = new LineItem(
+            kind: LineItem::KIND_ACCOMMODATION,
+            description: 'Wohnung Kiwi',
+            quantity: 44.0,
+            unitPriceGrossCents: 0,
+            taxRateBp: 700,
+            beds: 2,
+            nights: 22,
+            priceMode: LineItem::MODE_TOTAL,
+            lineTotalGrossCents: 125000,
+        );
+
+        self::assertSame(125000, $item->grossCents());
+        self::assertEqualsWithDelta(2840.909, $item->unitPriceCents(), 0.001);
+        self::assertSame('28,4091', Format::unitPrice($item->unitPriceCents()));
+
+        // Der angezeigte Nachtpreis muss sich zur Zeilensumme zurueckrechnen,
+        // sonst findet ein nachrechnender Kunde eine Differenz.
+        self::assertSame(125000, (int) round($item->unitPriceCents() * 44));
+
+        $totals = Calculator::compute([$item]);
+        self::assertSame(125000, $totals->grossTotalCents);
+        self::assertSame(116822, $totals->netTotalCents);
+        self::assertSame(8178, $totals->taxTotalCents);
+    }
+
+    public function testTagespreisUndEndpreisSindUmkehrbar(): void
+    {
+        $perNight = LineItem::accommodation('Kiwi', 2, '2026-10-09', '2026-10-31', 2800);
+        self::assertSame(123200, $perNight->grossCents());
+
+        $asTotal = new LineItem(
+            kind: LineItem::KIND_ACCOMMODATION,
+            description: 'Wohnung Kiwi',
+            quantity: 44.0,
+            unitPriceGrossCents: 0,
+            taxRateBp: 700,
+            priceMode: LineItem::MODE_TOTAL,
+            lineTotalGrossCents: 123200,
+        );
+
+        // Gleicher Betrag, egal von welcher Seite eingegeben.
+        self::assertSame($perNight->grossCents(), $asTotal->grossCents());
+        self::assertSame(
+            Format::unitPrice($perNight->unitPriceCents()),
+            Format::unitPrice($asTotal->unitPriceCents()),
+        );
+    }
+
+    public function testEndpreisModusOhneSummeWirdAbgelehnt(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new LineItem(
+            kind: LineItem::KIND_CUSTOM,
+            description: 'Ohne Summe',
+            quantity: 1.0,
+            unitPriceGrossCents: 0,
+            taxRateBp: 1900,
+            priceMode: LineItem::MODE_TOTAL,
+        );
+    }
+
+    public function testEinzelpreisDarstellung(): void
+    {
+        self::assertSame('28,00', Format::unitPrice(2800.0));
+        self::assertSame('28,4091', Format::unitPrice(2840.909090909));
+        self::assertSame('28,50', Format::unitPrice(2850.0));
+        self::assertSame('1,00', Format::unitPrice(100.0));
+        self::assertSame('0,00', Format::unitPrice(0.0));
+    }
+
     public function testNaechteAusDatumsspanne(): void
     {
         self::assertSame(22, LineItem::nightsBetween('2026-10-09', '2026-10-31'));

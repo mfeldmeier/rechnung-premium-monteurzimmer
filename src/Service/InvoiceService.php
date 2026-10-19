@@ -210,6 +210,12 @@ final class InvoiceService
             $quantity = (float) ($raw['quantity'] ?? 1);
         }
 
+        // Bei "total" gibt die Zeilensumme den Ton an; der Einzelpreis wird
+        // daraus abgeleitet und nicht aus der Eingabe uebernommen.
+        $priceMode = ($raw['price_mode'] ?? LineItem::MODE_UNIT) === LineItem::MODE_TOTAL
+            ? LineItem::MODE_TOTAL
+            : LineItem::MODE_UNIT;
+
         return new LineItem(
             kind: $kind,
             description: trim((string) ($raw['description'] ?? '')),
@@ -223,6 +229,10 @@ final class InvoiceService
             nights: $nights,
             dateFrom: $dateFrom,
             dateTo: $dateTo,
+            priceMode: $priceMode,
+            lineTotalGrossCents: $priceMode === LineItem::MODE_TOTAL
+                ? (int) ($raw['line_gross_cents'] ?? 0)
+                : null,
         );
     }
 
@@ -246,7 +256,11 @@ final class InvoiceService
                 'beds'                   => $item->beds,
                 'nights'                 => $item->nights,
                 'quantity'               => $item->quantity,
-                'unit_price_gross_cents' => $item->unitPriceGrossCents,
+                // Bei Modus "total" wird der Einzelpreis gerundet abgelegt.
+                // Massgeblich bleibt line_gross_cents - die Anzeige rechnet
+                // den genauen Wert jederzeit daraus zurueck.
+                'unit_price_gross_cents' => (int) round($item->unitPriceCents()),
+                'price_mode'             => $item->priceMode,
                 'tax_rate_bp'            => $item->taxRateBp,
                 'tax_category'           => $item->taxCategory,
                 'tax_exemption_reason'   => $item->taxExemptionReason,

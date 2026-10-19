@@ -256,7 +256,16 @@ $footerLine3 = $join([
                 <?= $e($item['beds'] . '/' . $item['nights']) ?>
                 <?php endif; ?>
             </td>
-            <td class="col-price"><?= $e(Format::money($item['unit_price_gross_cents'])) ?></td>
+            <?php
+            // Bei vorgegebenem Endpreis ist der Nachtpreis abgeleitet und
+            // selten glatt. Deshalb mit bis zu vier Nachkommastellen, damit
+            // die Multiplikation zur Zeilensumme aufgeht und niemand beim
+            // Nachrechnen auf eine Differenz stoesst.
+            $unitCents = (($item['price_mode'] ?? 'unit') === 'total' && (float) $item['quantity'] > 0)
+                ? $item['line_gross_cents'] / (float) $item['quantity']
+                : (float) $item['unit_price_gross_cents'];
+            ?>
+            <td class="col-price"><?= $e(Format::unitPrice($unitCents)) ?></td>
             <td class="col-sum"><?= $e(Format::money($item['line_gross_cents'])) ?></td>
         </tr>
     <?php endforeach; ?>

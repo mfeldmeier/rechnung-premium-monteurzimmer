@@ -46,6 +46,19 @@
         return sign + whole + ',' + frac + ' €';
     }
 
+    /**
+     * Entspricht Format::unitPrice(): zwei bis vier Nachkommastellen.
+     * Ein abgeleiteter Tagespreis ist selten glatt, und mit nur zwei Stellen
+     * multipliziert er sich nicht mehr zur Zeilensumme zurueck.
+     */
+    function formatUnitPrice(cents) {
+        var text = (cents / 100).toFixed(4).replace('.', ',');
+        var parts = text.split(',');
+        var frac = parts[1].replace(/0+$/, '');
+
+        return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + frac.padEnd(2, '0');
+    }
+
     function formatPercent(rateBp) {
         var text = (rateBp / 100).toFixed(2).replace('.', ',');
 
@@ -286,10 +299,22 @@
 
             output(row, 'quantity').textContent = String(quantity);
 
-            var price = parsePriceCents(field(row, 'unit_price_gross').value);
-            var gross = Math.round(price * quantity);
+            var unitInput = field(row, 'unit_price_gross');
+            var totalInput = field(row, 'line_gross');
+            var mode = field(row, 'price_mode');
+            var gross;
 
-            output(row, 'line-gross').textContent = formatMoney(gross);
+            if (mode.value === 'total') {
+                // Vorgegebener Endpreis, etwa der von Secra inklusive Gebuehren.
+                // Der Tagespreis ist dann abgeleitet und selten glatt: 1.250,00
+                // auf 44 Einheiten sind 28,4091. Mit zwei Nachkommastellen
+                // multipliziert sich das nicht zurueck, deshalb bis zu vier.
+                gross = parsePriceCents(totalInput.value);
+                unitInput.value = quantity > 0 ? formatUnitPrice(gross / quantity) : '';
+            } else {
+                gross = Math.round(parsePriceCents(unitInput.value) * quantity);
+                totalInput.value = formatMoney(gross).replace(' €', '');
+            }
 
             return gross;
         }
@@ -404,7 +429,11 @@
             field(row, 'tax_exemption_reason').value = values.tax_exemption_reason || '';
             field(row, 'unit_price_gross').value = values.price_cents == null
                 ? ''
-                : (values.price_cents / 100).toFixed(2).replace('.', ',');
+                : formatUnitPrice(values.price_cents);
+            field(row, 'price_mode').value = values.price_mode === 'total' ? 'total' : 'unit';
+            field(row, 'line_gross').value = values.line_gross_cents == null
+                ? ''
+                : formatMoney(values.line_gross_cents).replace(' €', '');
 
             body.appendChild(row);
             applyKind(row);
@@ -415,12 +444,21 @@
         }
 
         function addFromPreset(preset) {
+            // Der Leistungszeitraum steht oben im Formular. Ihn bei jeder
+            // Uebernachtungszeile erneut einzutippen ist Doppelarbeit - also
+            // vorbelegen; aendern laesst er sich in der Zeile weiterhin.
+            var serviceFrom = document.querySelector('[name="service_from"]');
+            var serviceTo = document.querySelector('[name="service_to"]');
+            var isStay = preset.kind === 'accommodation';
+
             var row = addRow({
                 kind: preset.kind,
                 // Der Platzhalter wird erst beim Waehlen der Wohnung ersetzt.
                 description: preset.description_template.indexOf('{apartment}') === -1
                     ? preset.description_template
                     : '',
+                date_from: isStay && serviceFrom ? serviceFrom.value : '',
+                date_to: isStay && serviceTo ? serviceTo.value : '',
                 quantity: 1,
                 tax: preset.tax_category + '|' + preset.tax_rate_bp,
                 tax_exemption_reason: preset.tax_exemption_reason,
@@ -475,9 +513,20 @@
 
         body.addEventListener('input', function (event) {
             var row = event.target.closest('tr.item-row');
-            if (row) {
-                updateTotals();
+            if (!row) {
+                return;
             }
+
+            // Massgeblich ist das Feld, in dem zuletzt getippt wurde. So lassen
+            // sich beide Richtungen bedienen, ohne vorher einen Modus zu waehlen.
+            var edited = event.target.dataset.field;
+            if (edited === 'line_gross') {
+                field(row, 'price_mode').value = 'total';
+            } else if (edited === 'unit_price_gross') {
+                field(row, 'price_mode').value = 'unit';
+            }
+
+            updateTotals();
         });
 
         body.addEventListener('change', function (event) {

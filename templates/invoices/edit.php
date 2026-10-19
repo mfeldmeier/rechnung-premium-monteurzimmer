@@ -24,6 +24,8 @@ $seed = [
         'beds'                 => $item['beds'],
         'quantity'             => $item['quantity'],
         'price_cents'          => $item['unit_price_gross_cents'],
+        'price_mode'           => $item['price_mode'] ?? 'unit',
+        'line_gross_cents'     => $item['line_gross_cents'],
         'tax'                  => $item['tax_category'] . '|' . $item['tax_rate_bp'],
         'tax_exemption_reason' => $item['tax_exemption_reason'] ?? '',
     ], $invoice['items']),
@@ -98,7 +100,14 @@ $seed = [
                     <label class="grow">E-Mail <input type="email" name="customer[email]" data-customer="email" value="<?= e($customer['email'] ?? '') ?>" maxlength="190"></label>
                     <label class="grow">Telefon <input type="text" name="customer[phone]" data-customer="phone" value="<?= e($customer['phone'] ?? '') ?>" maxlength="60"></label>
                 </div>
-                <label>USt-IdNr. <input type="text" name="customer[vat_id]" data-customer="vat_id" value="<?= e($customer['vat_id'] ?? '') ?>" maxlength="30"></label>
+                <?php /* Die USt-IdNr geben die Firmen in der Praxis nicht an.
+                         Das Feld bleibt erhalten - fuer die E-Rechnung ist es
+                         nuetzlich -, steht aber nicht mehr im Weg. Ist bereits
+                         eine hinterlegt, ist es von vornherein aufgeklappt. */ ?>
+                <details class="optional-field"<?= ($customer['vat_id'] ?? '') !== '' ? ' open' : '' ?>>
+                    <summary>USt-IdNr. ergänzen <span class="muted small">(optional)</span></summary>
+                    <label>USt-IdNr. <input type="text" name="customer[vat_id]" data-customer="vat_id" value="<?= e($customer['vat_id'] ?? '') ?>" maxlength="30"></label>
+                </details>
             </div>
         </div>
     </section>
@@ -230,7 +239,14 @@ $seed = [
                 <?php endforeach; ?>
             </select>
         </td>
-        <td class="num"><output data-output="line-gross">0,00 €</output></td>
+        <?php /* Beide Richtungen: Tagespreis eingeben und die Summe ergibt sich,
+                 oder die Summe eingeben und der Tagespreis ergibt sich. Welches
+                 Feld zuletzt bearbeitet wurde, steht in price_mode. */ ?>
+        <td class="num">
+            <input type="text" data-field="line_gross" class="price" inputmode="decimal"
+                   placeholder="0,00" aria-label="Kosten brutto">
+            <input type="hidden" data-field="price_mode" value="unit">
+        </td>
         <td class="row-actions">
             <button type="button" class="btn btn-icon" data-move="up" title="Nach oben">▲</button>
             <button type="button" class="btn btn-icon" data-move="down" title="Nach unten">▼</button>

@@ -22,8 +22,13 @@
         <div class="row">
             <label class="grow">E-Mail <input type="email" name="email" value="<?= e($customer['email']) ?>" maxlength="190"></label>
             <label class="grow">Telefon <input type="text" name="phone" value="<?= e($customer['phone']) ?>" maxlength="60"></label>
-            <label class="grow">USt-IdNr. <input type="text" name="vat_id" value="<?= e($customer['vat_id']) ?>" maxlength="30"></label>
         </div>
+        <?php /* Die USt-IdNr geben die Firmen in der Praxis nicht an - das Feld
+                 ist deshalb eingeklappt, bleibt aber erhalten. */ ?>
+        <details class="optional-field"<?= $customer['vat_id'] !== '' ? ' open' : '' ?>>
+            <summary>USt-IdNr. ergänzen <span class="muted small">(optional)</span></summary>
+            <label>USt-IdNr. <input type="text" name="vat_id" value="<?= e($customer['vat_id']) ?>" maxlength="30"></label>
+        </details>
         <label>Notizen <textarea name="notes" rows="3"><?= e($customer['notes']) ?></textarea></label>
         <button type="submit" class="btn btn-primary">Speichern</button>
     </form>
