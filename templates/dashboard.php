@@ -46,6 +46,7 @@
     <?php if ($recent === []): ?>
         <p class="muted">Noch keine Rechnungen vorhanden.</p>
     <?php else: ?>
+        <div class="table-scroll">
         <table class="grid">
             <thead>
             <tr>
@@ -70,5 +71,6 @@
             <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
     <?php endif; ?>
 </section>

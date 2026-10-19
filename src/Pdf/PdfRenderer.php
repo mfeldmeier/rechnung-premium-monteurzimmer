@@ -17,7 +17,13 @@ final class PdfRenderer
         $this->tempDir = $tempDir ?? sys_get_temp_dir();
     }
 
-    public function render(array $invoice): string
+    /**
+     * @param bool $archival PDF/A erzeugen. Pflicht fuer das hybride ZUGFeRD-PDF,
+     *                       fuer die Vorschau dagegen hinderlich: PDF/A verbietet
+     *                       Transparenz, und mPDF bricht ab, sobald ein Entwurf
+     *                       sein Wasserzeichen setzen will.
+     */
+    public function render(array $invoice, bool $archival = true): string
     {
         $mpdf = new Mpdf([
             'mode'          => 'utf-8',
@@ -33,12 +39,14 @@ final class PdfRenderer
         // PDF/A ist Voraussetzung dafuer, dass horstoeko/zugferd das XML spaeter
         // normkonform als PDF/A-3 einbetten kann. PDFAauto laesst mPDF die noetigen
         // Korrekturen (Farbraum, Transparenz) selbst vornehmen, statt abzubrechen.
-        $mpdf->PDFA        = true;
-        $mpdf->PDFAauto    = true;
+        $mpdf->PDFA        = $archival;
+        $mpdf->PDFAauto    = $archival;
         $mpdf->PDFAversion = '3-B';
 
-        // Das Template entscheidet ueber <watermarktext>; ohne Tag bleibt das wirkungslos.
-        $mpdf->showWatermarkText = true;
+        // Das Template entscheidet ueber <watermarktext>; ohne Tag bleibt das
+        // wirkungslos. Zusammen mit PDF/A waere es nicht wirkungslos, sondern
+        // ein Abbruch - deshalb nur in der Vorschau.
+        $mpdf->showWatermarkText = !$archival;
 
         $mpdf->SetTitle($this->title($invoice));
         $mpdf->SetAuthor((string) ($invoice['seller']['name'] ?? ''));

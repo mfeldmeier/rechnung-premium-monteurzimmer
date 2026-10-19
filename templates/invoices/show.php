@@ -39,6 +39,8 @@ $isCredit = $invoice['doc_type'] === 'credit_note';
                 <dd><?= e(dmy($invoice['service_from'])) ?> – <?= e(dmy($invoice['service_to'])) ?></dd>
             <?php endif; ?>
             <dt>Betreff</dt><dd><?= e($invoice['subject']) ?></dd>
+            <dt>Preisbasis</dt>
+            <dd><?= ($invoice['prices_include_tax'] ?? true) ? 'inkl. MwSt (brutto erfasst)' : 'zzgl. MwSt (netto erfasst)' ?></dd>
             <?php if ($invoice['finalized_at'] !== null): ?>
                 <dt>Finalisiert</dt><dd><?= e($invoice['finalized_at']) ?></dd>
             <?php endif; ?>
@@ -53,6 +55,7 @@ $isCredit = $invoice['doc_type'] === 'credit_note';
 
 <section class="card">
     <h2>Positionen</h2>
+    <div class="table-scroll">
     <table class="grid">
         <thead>
         <tr>
@@ -89,6 +92,7 @@ $isCredit = $invoice['doc_type'] === 'credit_note';
         <?php endforeach; ?>
         </tbody>
     </table>
+    </div>
 </section>
 
 <section class="card card--narrow">

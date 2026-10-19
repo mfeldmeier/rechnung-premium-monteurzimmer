@@ -249,6 +249,7 @@
         }
 
         var data = JSON.parse(source.textContent);
+        var basisInputs = document.querySelectorAll('[name="prices_include_tax"]');
         var presets = {};
         data.presets.forEach(function (preset) {
             presets[String(preset.id)] = preset;
@@ -264,6 +265,19 @@
 
         function output(row, name) {
             return row.querySelector('[data-output="' + name + '"]');
+        }
+
+        /** Spiegelt den Umschalter ueber den Positionen. */
+        function grossPrices() {
+            var checked = document.querySelector('[name="prices_include_tax"]:checked');
+
+            return checked === null ? true : checked.value === '1';
+        }
+
+        function rateBpOf(row) {
+            var parts = (field(row, 'tax').value || 'S|1900').split('|');
+
+            return parts[0] === 'S' ? (parseInt(parts[1], 10) || 0) : 0;
         }
 
         function applyKind(row) {
@@ -302,21 +316,25 @@
             var unitInput = field(row, 'unit_price_gross');
             var totalInput = field(row, 'line_gross');
             var mode = field(row, 'price_mode');
-            var gross;
+            var entered;
 
             if (mode.value === 'total') {
                 // Vorgegebener Endpreis, etwa der von Secra inklusive Gebuehren.
                 // Der Tagespreis ist dann abgeleitet und selten glatt: 1.250,00
                 // auf 44 Einheiten sind 28,4091. Mit zwei Nachkommastellen
                 // multipliziert sich das nicht zurueck, deshalb bis zu vier.
-                gross = parsePriceCents(totalInput.value);
-                unitInput.value = quantity > 0 ? formatUnitPrice(gross / quantity) : '';
+                entered = parsePriceCents(totalInput.value);
+                unitInput.value = quantity > 0 ? formatUnitPrice(entered / quantity) : '';
             } else {
-                gross = Math.round(parsePriceCents(unitInput.value) * quantity);
-                totalInput.value = formatMoney(gross).replace(' €', '');
+                entered = Math.round(parsePriceCents(unitInput.value) * quantity);
+                totalInput.value = formatMoney(entered).replace(' €', '');
             }
 
-            return gross;
+            // Beide Felder bleiben in der eingegebenen Basis stehen. Nach oben
+            // geht der Bruttobetrag - genau wie in LineItem::grossCents().
+            return grossPrices()
+                ? entered
+                : Math.round(entered * (10000 + rateBpOf(row)) / 10000);
         }
 
         /**
@@ -326,6 +344,14 @@
         function updateTotals() {
             var buckets = {};
             var order = [];
+            var gross = grossPrices();
+
+            document.querySelectorAll('[data-price-head]').forEach(function (th) {
+                th.textContent = gross ? 'Preis brutto' : 'Preis netto';
+            });
+            document.querySelectorAll('[data-sum-head]').forEach(function (th) {
+                th.textContent = gross ? 'Summe brutto' : 'Summe netto';
+            });
 
             rows().forEach(function (row) {
                 var gross = recalcRow(row);
@@ -370,7 +396,10 @@
                 ));
 
                 if (tax !== 0) {
-                    groupsBody.appendChild(totalRow('zzgl. ' + formatPercent(group.rateBp) + ' % USt', tax));
+                    groupsBody.appendChild(totalRow(
+                        (gross ? 'davon ' : 'zzgl. ') + formatPercent(group.rateBp) + ' % USt',
+                        tax
+                    ));
                 }
             });
 
@@ -450,6 +479,14 @@
             var serviceFrom = document.querySelector('[name="service_from"]');
             var serviceTo = document.querySelector('[name="service_to"]');
             var isStay = preset.kind === 'accommodation';
+            var rateBp = preset.tax_category === 'S' ? preset.tax_rate_bp : 0;
+            var presetPrice = preset.price_is_manual ? null : preset.default_price_cents;
+
+            // Bausteine sind brutto hinterlegt. Im Netto-Modus wird daraus der
+            // Nettopreis, damit derselbe Endbetrag herauskommt wie sonst.
+            if (presetPrice !== null && !grossPrices()) {
+                presetPrice = Math.round(presetPrice * 10000 / (10000 + rateBp));
+            }
 
             var row = addRow({
                 kind: preset.kind,
@@ -463,7 +500,7 @@
                 tax: preset.tax_category + '|' + preset.tax_rate_bp,
                 tax_exemption_reason: preset.tax_exemption_reason,
                 // Der Nachtpreis wird je Buchung verhandelt und deshalb nie vorbelegt.
-                price_cents: preset.price_is_manual ? null : preset.default_price_cents
+                price_cents: presetPrice
             });
 
             row.dataset.template = preset.description_template;
@@ -617,6 +654,13 @@
             dragged.classList.remove('is-dragging');
             dragged = null;
             refresh();
+        });
+
+        // Umschalten laesst die eingetippten Zahlen stehen und deutet sie neu:
+        // aus "280 brutto" wird "280 netto". Alles andere waere ein stiller
+        // Eingriff in Betraege, die jemand von Hand gesetzt hat.
+        basisInputs.forEach(function (input) {
+            input.addEventListener('change', updateTotals);
         });
 
         data.items.forEach(addRow);

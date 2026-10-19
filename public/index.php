@@ -95,6 +95,8 @@ try {
     $router->get('/rechnungen/neu', $invoices->create(...));
     $router->get('/rechnungen/{id}', $invoices->show(...));
     $router->get('/rechnungen/{id}/pdf', $invoices->pdf(...));
+    // "neu" statt einer Id ist zulaessig: die Vorschau braucht keinen Datensatz.
+    $router->post('/rechnungen/{id}/vorschau', $invoices->previewPdf(...));
     $router->post('/rechnungen/{id}/speichern', $invoices->save(...));
     $router->post('/rechnungen/{id}/finalisieren', $invoices->finalize(...));
     $router->post('/rechnungen/{id}/stornieren', $invoices->cancel(...));

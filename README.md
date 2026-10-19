@@ -88,6 +88,40 @@ php bin/user.php add <mail> "<Name>"   # nur beim ersten Mal
 | Endreinigung | 19 % | Regelsteuersatz, eigenständige Leistung |
 | Kaution | 0 % / steuerfrei | Durchlaufender Posten; in ZUGFeRD mit UNTDID-Kategorie `E` (Exempt) ausgewiesen, da keine steuerbare Leistung |
 
+### Preisbasis brutto oder netto
+
+Über den Positionen steht ein Umschalter, der für die ganze Rechnung gilt.
+Voreinstellung ist brutto – so werden die Nächte verhandelt. Bei „zzgl. MwSt"
+gelten die eingetippten Beträge als netto und werden je Zeile einmal
+hochgerechnet; gerundet wird danach wie immer je Steuergruppe.
+
+Gespeichert bleibt beides: `unit_price_gross_cents` und `line_gross_cents`
+sind weiterhin brutto (daran hängen PDF, ZUGFeRD BT-148 und das Storno), die
+Eingabe steht unverändert in `input_unit_price_cents` und `input_line_cents`.
+Ohne diese beiden Spalten müsste der Editor den Nettopreis zurückrechnen, und
+der Betrag würde bei jedem zweiten Speichern um einen Cent wandern.
+
+## PDF-Vorschau und Layoutprüfung
+
+Im Editor zeigt `PDF-Vorschau` den aktuellen Formularstand als PDF an, ohne zu
+speichern – es wird kein Entwurf angelegt und kein Neukunde erzeugt. Die
+Vorschau enthält bewusst **kein** ZUGFeRD-XML: dafür wäre eine Rechnungsnummer
+(BT-1) nötig, die es erst beim Finalisieren gibt.
+
+Das Layout lässt sich ohne Datenbank und ohne Browser prüfen:
+
+```bash
+php bin/sample-pdf.php /tmp/muster      # 18 Positionen, bricht auf zwei Seiten um
+php bin/sample-pdf.php /tmp/muster 0    # alles auf einer Seite
+```
+
+Die Muster enthalten absichtlich unangenehme Werte (sehr langer Firmenname,
+Beschreibung ohne Leerzeichen, lange Steuerbefreiungs-Begründung).
+
+> PDF/A und Wasserzeichen schließen sich in mPDF aus: PDF/A verbietet
+> Transparenz. Deshalb rendert die Vorschau mit `archival: false`, das hybride
+> Rechnungs-PDF dagegen weiterhin als PDF/A-3.
+
 ---
 
 ## Nicht erledigt / offen
