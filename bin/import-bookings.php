@@ -187,14 +187,19 @@ foreach ($messages as $message) {
 
 $client->disconnect();
 
-printf(
-    "%s: %d Mail(en) mit PDF, %d Entwürfe angelegt, %d bereits bekannt, %d fehlgeschlagen.\n",
-    $dryRun ? 'Probelauf' : 'Import',
-    $gelesen,
-    $angelegt,
-    $uebersprungen,
-    $fehler,
-);
+// Im Cron gilt: wer nichts zu sagen hat, schweigt. Plesk verschickt jede
+// Ausgabe als Mail, und alle zehn Minuten eine Erfolgsmeldung liest niemand -
+// bis sie irgendwann auch die Fehlermeldungen nicht mehr liest.
+if ($gelesen > 0 || $fehler > 0 || $dryRun) {
+    printf(
+        "%s: %d Mail(en) mit PDF, %d Entwürfe angelegt, %d bereits bekannt, %d fehlgeschlagen.\n",
+        $dryRun ? 'Probelauf' : 'Import',
+        $gelesen,
+        $angelegt,
+        $uebersprungen,
+        $fehler,
+    );
+}
 
 exit($fehler > 0 ? 1 : 0);
 
