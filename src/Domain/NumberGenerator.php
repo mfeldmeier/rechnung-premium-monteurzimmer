@@ -35,6 +35,27 @@ final class NumberGenerator
     }
 
     /**
+     * Welche Nummer als naechste vergeben wuerde - ohne sie zu reservieren.
+     *
+     * Bewusst ohne Sperre und ohne Transaktion: die Auskunft ist unverbindlich.
+     * Wird zwischendurch eine andere Rechnung finalisiert, verschiebt sie sich.
+     * Sie hier zu reservieren waere schlimmer - ein verworfener Entwurf risse
+     * dann eine Luecke in den Nummernkreis.
+     */
+    public function peek(PDO $pdo, int $year): string
+    {
+        $table       = Db::table('number_counters');
+        $counterYear = $this->resetYearly ? $year : 0;
+
+        $stmt = $pdo->prepare("SELECT `last_seq` FROM {$table} WHERE `number_year` = ?");
+        $stmt->execute([$counterYear]);
+
+        $last = $stmt->fetchColumn();
+
+        return self::formatNumber($this->format, (int) ($last === false ? 0 : $last) + 1, $year);
+    }
+
+    /**
      * Muss innerhalb einer bereits offenen Transaktion laufen: die Zeilensperre
      * aus SELECT ... FOR UPDATE haelt nur bis zum Commit. Ohne Transaktion
      * koennten zwei gleichzeitige Finalisierungen dieselbe Nummer ziehen.

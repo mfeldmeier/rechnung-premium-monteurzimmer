@@ -40,7 +40,15 @@ $seed = [
 ];
 ?>
 <div class="pagehead">
-    <h1><?= $isNew ? 'Neue Rechnung' : 'Entwurf #' . e($invoice['id']) ?></h1>
+    <h1>
+        <?= $isNew ? 'Neue Rechnung' : 'Entwurf #' . e($invoice['id']) ?>
+        <?php /* Unverbindlich: wer zwischendurch eine andere Rechnung
+                 finalisiert, verschiebt diese Nummer. Reserviert wird sie
+                 deshalb nicht. */ ?>
+        <span class="badge" title="Wird erst beim Finalisieren vergeben">
+            voraussichtlich <?= e($nextNumber) ?>
+        </span>
+    </h1>
     <a class="btn btn-plain" href="/rechnungen">Zur Liste</a>
 </div>
 
@@ -246,8 +254,8 @@ $seed = [
     <section class="card">
         <h2>Finalisieren</h2>
         <p class="muted">
-            Beim Finalisieren bekommt die Rechnung ihre fortlaufende Nummer und ist danach
-            unveränderlich. Nicht gespeicherte Änderungen gehen dabei verloren – also erst speichern.
+            Beim Finalisieren bekommt die Rechnung die Nummer <strong><?= e($nextNumber) ?></strong>
+            und ist danach unveränderlich. Nicht gespeicherte Änderungen gehen dabei verloren – also erst speichern.
         </p>
         <form method="post" action="/rechnungen/<?= e($invoice['id']) ?>/finalisieren"
               data-confirm="Rechnung jetzt finalisieren? Danach ist keine Änderung mehr möglich.">

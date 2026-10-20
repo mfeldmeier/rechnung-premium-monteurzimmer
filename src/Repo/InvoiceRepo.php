@@ -101,6 +101,10 @@ final class InvoiceRepo
             'tax_total_cents'    => (int) $row['tax_total_cents'],
             'gross_total_cents'  => (int) $row['gross_total_cents'],
             'cancels_invoice_id' => $row['cancels_invoice_id'] !== null ? (int) $row['cancels_invoice_id'] : null,
+            // Die Nummer der stornierten Rechnung, nicht nur ihre Id: eine
+            // Korrektur muss nachvollziehbar sein, und "zu Rechnung 69/2026"
+            // liest sich auf dem Papier besser als eine interne Id.
+            'cancels_invoice_number' => $this->numberOf($row['cancels_invoice_id'] ?? null),
             'cancel_reason'      => $row['cancel_reason'] !== null ? (string) $row['cancel_reason'] : null,
             'pdf_filename'       => $row['pdf_filename'] !== null ? (string) $row['pdf_filename'] : null,
             'finalized_at'       => $row['finalized_at'] !== null ? (string) $row['finalized_at'] : null,
@@ -242,6 +246,21 @@ final class InvoiceRepo
         }, $stmt->fetchAll());
 
         return ['rows' => $rows, 'total' => $total];
+    }
+
+    private function numberOf(mixed $invoiceId): ?string
+    {
+        if ($invoiceId === null) {
+            return null;
+        }
+
+        $table = Db::table('invoices');
+        $stmt  = Db::pdo()->prepare("SELECT `number` FROM {$table} WHERE `id` = ?");
+        $stmt->execute([(int) $invoiceId]);
+
+        $number = $stmt->fetchColumn();
+
+        return $number === false || $number === null ? null : (string) $number;
     }
 
     private function mapItem(array $row): array

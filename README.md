@@ -101,6 +101,29 @@ Eingabe steht unverändert in `input_unit_price_cents` und `input_line_cents`.
 Ohne diese beiden Spalten müsste der Editor den Nettopreis zurückrechnen, und
 der Betrag würde bei jedem zweiten Speichern um einen Cent wandern.
 
+## Nummernkreis und Zurücksetzen
+
+Die nächste Rechnungsnummer steht in der Oberfläche: in der Rechnungsliste neben
+der Überschrift und im Editor neben dem Entwurfstitel. Sie ist **unverbindlich** —
+wer zwischendurch eine andere Rechnung finalisiert, verschiebt sie. Reserviert
+wird sie bewusst nicht, sonst risse jeder verworfene Entwurf eine Lücke.
+
+Zum Ende der Testphase lassen sich alle Rechnungen löschen und der Zähler neu
+setzen:
+
+```bash
+php bin/reset-invoices.php                            # zeigt nur den Bestand
+php bin/reset-invoices.php --force                    # löscht, nächste wird 69/2026
+php bin/reset-invoices.php --force --next=1 --year=2027
+```
+
+> **Das ist endgültig.** Ohne `--force` wird nur gezählt. Für bereits versandte
+> Rechnungen ist es der falsche Weg: sie unterliegen der Aufbewahrungspflicht,
+> und eine später erneut vergebene Nummer beschriebe dann zwei Vorgänge.
+
+`last_seq` in `pmz_number_counters` ist die zuletzt **vergebene** Nummer — für
+einen Start bei 69 steht dort also 68.
+
 ## Buchungen automatisch übernehmen
 
 secra schickt zu jeder Buchung eine Bestätigung als PDF. `bin/import-bookings.php`

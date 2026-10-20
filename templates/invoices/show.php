@@ -49,8 +49,12 @@ $isCredit = $invoice['doc_type'] === 'credit_note';
                 <dt>Finalisiert</dt><dd><?= e($invoice['finalized_at']) ?></dd>
             <?php endif; ?>
             <?php if ($invoice['cancels_invoice_id'] !== null): ?>
-                <dt>Storniert</dt>
-                <dd><a href="/rechnungen/<?= e($invoice['cancels_invoice_id']) ?>">Rechnung #<?= e($invoice['cancels_invoice_id']) ?></a></dd>
+                <dt>Storno zu</dt>
+                <dd>
+                    <a href="/rechnungen/<?= e($invoice['cancels_invoice_id']) ?>">
+                        <?= e($invoice['cancels_invoice_number'] ?? ('Rechnung #' . $invoice['cancels_invoice_id'])) ?>
+                    </a>
+                </dd>
                 <dt>Grund</dt><dd><?= e($invoice['cancel_reason']) ?></dd>
             <?php endif; ?>
         </dl>

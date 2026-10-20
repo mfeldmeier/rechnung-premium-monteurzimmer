@@ -250,6 +250,15 @@ final class InvoiceService
         return $this->customers->snapshot($customerRow);
     }
 
+    /**
+     * Die Nummer, die beim naechsten Finalisieren vergeben wuerde. Unverbindlich:
+     * wer zwischendurch eine andere Rechnung finalisiert, verschiebt sie.
+     */
+    public function nextNumber(?int $year = null): string
+    {
+        return $this->numberGenerator()->peek(Db::pdo(), $year ?? (int) date('Y'));
+    }
+
     private function numberGenerator(): NumberGenerator
     {
         return new NumberGenerator(

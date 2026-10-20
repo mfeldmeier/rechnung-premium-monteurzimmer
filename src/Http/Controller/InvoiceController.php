@@ -66,8 +66,9 @@ final class InvoiceController extends BaseController
             'total'    => $result['total'],
             'page'     => $page,
             'perPage'  => self::PER_PAGE,
-            'lastPage' => max(1, (int) ceil($result['total'] / self::PER_PAGE)),
-            'years'    => $this->stats->years(),
+            'lastPage'   => max(1, (int) ceil($result['total'] / self::PER_PAGE)),
+            'years'      => $this->stats->years(),
+            'nextNumber' => $this->service->nextNumber(),
         ]);
     }
 
@@ -261,6 +262,10 @@ final class InvoiceController extends BaseController
             'apartments' => $apartments,
             'presets'    => $presets,
             'taxOptions' => $this->taxOptions(),
+            // Nur zur Anzeige: die Nummer entsteht erst beim Finalisieren.
+            'nextNumber' => $this->service->nextNumber(
+                (int) substr((string) $invoice['invoice_date'], 0, 4),
+            ),
         ], $status);
     }
 

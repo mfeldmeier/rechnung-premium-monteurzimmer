@@ -140,8 +140,13 @@ $footerLine3 = $join([
         font-weight: normal;
     }
 
+    /* Der Bezug zur stornierten Rechnung bleibt - ohne ihn waere die
+       Korrektur nicht nachvollziehbar (§ 14c UStG). Er steht aber klein
+       unter dem Betreff und nicht als eigener Block mitten auf der Seite. */
     .storno-note {
         margin-bottom: 4mm;
+        font-size: 8.5pt;
+        color: #555555;
     }
 
     .items th {
@@ -298,8 +303,13 @@ $footerLine3 = $join([
     </tr>
 </table>
 
-<?php if ($isStorno && ($invoice['cancel_reason'] ?? '') !== ''): ?>
-<div class="storno-note">Stornogrund: <?= $e($invoice['cancel_reason']) ?></div>
+<?php if ($isStorno): ?>
+<div class="storno-note"><?= $join([
+    ($invoice['cancels_invoice_number'] ?? null) !== null
+        ? 'Storno zu Rechnung ' . $e($invoice['cancels_invoice_number'])
+        : '',
+    ($invoice['cancel_reason'] ?? '') !== '' ? 'Grund: ' . $e($invoice['cancel_reason']) : '',
+]) ?></div>
 <?php endif; ?>
 
 <table class="items">

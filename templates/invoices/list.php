@@ -10,7 +10,14 @@
 $keep = ['status' => $filter['status'], 'jahr' => $filter['year'], 'q' => $filter['q']];
 ?>
 <div class="pagehead">
-    <h1>Rechnungen</h1>
+    <h1>
+        Rechnungen
+        <?php /* Ausserhalb der Trefferliste, damit die Nummer auch dann
+                 sichtbar ist, wenn noch keine Rechnung existiert. */ ?>
+        <span class="badge" title="Wird beim nächsten Finalisieren vergeben">
+            nächste: <?= e($nextNumber) ?>
+        </span>
+    </h1>
     <a class="btn btn-primary" href="/rechnungen/neu">Neue Rechnung</a>
 </div>
 
