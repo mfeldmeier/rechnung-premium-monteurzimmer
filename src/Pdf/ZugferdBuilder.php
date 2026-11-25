@@ -41,6 +41,12 @@ final class ZugferdBuilder
             $builder->addDocumentNote('Stornogrund: ' . $invoice['cancel_reason']);
         }
 
+        // Derselbe Hinweis wie in der Fussleiste des PDFs - wer nur das XML
+        // verarbeitet, soll nicht weniger erfahren als wer das Sichtbild liest.
+        if ((string) ($seller['agb_url'] ?? '') !== '') {
+            $builder->addDocumentNote('Es gelten unsere AGB, einsehbar unter ' . $seller['agb_url'] . '.');
+        }
+
         $this->addSeller($builder, $seller);
         $this->addBuyer($builder, $customer);
         $this->addDates($builder, $invoice);

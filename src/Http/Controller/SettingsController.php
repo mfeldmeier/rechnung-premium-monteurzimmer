@@ -16,6 +16,7 @@ final class SettingsController extends BaseController
     private const KEYS = [
         'seller_name', 'seller_owner', 'seller_street', 'seller_postcode', 'seller_city',
         'seller_country_code', 'seller_phone', 'seller_email', 'seller_website',
+        'agb_url',
         'seller_tax_number', 'seller_vat_id',
         'bank_name', 'bank_iban', 'bank_bic',
         'invoice_subject', 'closing_text', 'payment_terms_text',

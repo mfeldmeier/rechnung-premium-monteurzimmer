@@ -60,6 +60,15 @@ $footerLine3 = $join([
     $seller['bank_bic'] !== '' ? 'BIC ' . $e($seller['bank_bic']) : '',
 ]);
 
+// Der AGB-Hinweis gehoert in die Fussleiste und nicht nur in den Zahlungstext:
+// der ist pro Rechnung editierbar und faellt damit irgendwann weg. Gedruckt
+// wird die Adresse ohne Schema, weil sie zum Abtippen da ist.
+// Snapshots vor Migration 007 kennen den Schluessel nicht - dann keine Zeile.
+$agbUrl      = (string) ($seller['agb_url'] ?? '');
+$footerLine4 = $agbUrl !== ''
+    ? 'AGB: ' . $e(preg_replace('#^https?://#', '', $agbUrl))
+    : '';
+
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -249,6 +258,9 @@ $footerLine3 = $join([
         <div><?= $footerLine1 ?></div>
         <div><?= $footerLine2 ?></div>
         <div><?= $footerLine3 ?></div>
+        <?php if ($footerLine4 !== ''): ?>
+        <div><?= $footerLine4 ?></div>
+        <?php endif; ?>
         <?php /* Mehrseitige Rechnungen sollen zeigen, dass nichts fehlt. */ ?>
         <div class="pages">Seite {PAGENO} von {nbpg}</div>
     </div>

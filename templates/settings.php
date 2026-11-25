@@ -13,6 +13,7 @@ $labels = [
     'seller_phone'        => 'Telefon',
     'seller_email'        => 'E-Mail',
     'seller_website'      => 'Website',
+    'agb_url'             => 'AGB-Link (Fußzeile)',
     'seller_tax_number'   => 'Steuernummer',
     'seller_vat_id'       => 'USt-IdNr.',
     'bank_name'           => 'Bank',
@@ -24,7 +25,7 @@ $labels = [
     'number_format'       => 'Nummernformat',
 ];
 $groups = [
-    'Absender' => ['seller_name', 'seller_owner', 'seller_street', 'seller_postcode', 'seller_city', 'seller_country_code', 'seller_phone', 'seller_email', 'seller_website', 'seller_tax_number', 'seller_vat_id'],
+    'Absender' => ['seller_name', 'seller_owner', 'seller_street', 'seller_postcode', 'seller_city', 'seller_country_code', 'seller_phone', 'seller_email', 'seller_website', 'agb_url', 'seller_tax_number', 'seller_vat_id'],
     'Bank'     => ['bank_name', 'bank_iban', 'bank_bic'],
     'Texte'    => ['invoice_subject', 'closing_text', 'payment_terms_text'],
 ];

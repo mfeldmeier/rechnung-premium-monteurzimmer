@@ -17,6 +17,7 @@ INSERT IGNORE INTO `{{prefix}}settings` (`setting_key`, `setting_value`) VALUES
   ('seller_phone',        '+49 15237395167'),
   ('seller_email',        'reher@premium-monteurzimmer.com'),
   ('seller_website',      'www.premium-monteurzimmer.com'),
+  ('agb_url',             'https://www.premium-monteurzimmer.com/agbs'),
   ('seller_tax_number',   '02646653810'),
   ('seller_vat_id',       ''),
   ('bank_name',           '1822direkt'),
@@ -24,7 +25,7 @@ INSERT IGNORE INTO `{{prefix}}settings` (`setting_key`, `setting_value`) VALUES
   ('bank_bic',            'HELADEF1822'),
   ('invoice_subject',     'Monteurzimmer'),
   ('closing_text',        'Mit freundlichen Grüßen'),
-  ('payment_terms_text',  'Die Zahlung ist sofort und vor Bezug ohne Abzüge per Echtzeitüberweisung oder in Bar zu leisten. Mit der Überweisung willigen Sie in die AGB''s, einsehbar unter www.premium-monteurzimmer.com, ein.'),
+  ('payment_terms_text',  'Die Zahlung ist sofort und vor Bezug ohne Abzüge per Echtzeitüberweisung oder in Bar zu leisten. Mit der Überweisung willigen Sie in die AGB''s, einsehbar unter https://www.premium-monteurzimmer.com/agbs, ein.'),
   ('number_format',       '{seq}/{year}'),
   ('number_reset_yearly', '1');
 

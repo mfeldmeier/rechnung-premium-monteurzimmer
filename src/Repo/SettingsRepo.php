@@ -62,6 +62,7 @@ final class SettingsRepo
             'phone'        => $s['seller_phone']        ?? '',
             'email'        => $s['seller_email']        ?? '',
             'website'      => $s['seller_website']      ?? '',
+            'agb_url'      => $s['agb_url']             ?? '',
             'tax_number'   => $s['seller_tax_number']   ?? '',
             'vat_id'       => $s['seller_vat_id']       ?? '',
             'bank_name'    => $s['bank_name']           ?? '',
